@@ -4,7 +4,7 @@ Reliability is the top priority for this project (see `ARCHITECTURE.md`),
 so the pipeline is measured against a small fixed set of hand-verified
 workflows rather than judged by spot-checking. This folder is currently a
 skeleton — no recordings or ground truth exist yet, since v1 only implements
-Stage 1 (Capture).
+Stage 1 (Capture) and Stage 2 (Segment).
 
 ## Layout
 
@@ -34,7 +34,26 @@ Stage 1 (Capture).
   README: step-extraction precision/recall, and end-to-end replay success
   rate.
 
+## Segment-boundary calibration
+
+Stage 2's CLIP-fallback path (for imported videos with no event log) ships
+with an unvalidated default similarity threshold (`0.90`). Once at least
+one hand-labeled `boundaries.json` (a JSON list of ground-truth boundary
+timestamps in ms) exists under `ground_truth/<task>/`, run:
+
+```sh
+uv run python scripts/tune_segment_threshold.py \
+    eval/recordings/<imported-session-id> \
+    eval/ground_truth/<task>/boundaries.json
+```
+
+It sweeps thresholds and reports precision/recall/F1 (±500ms tolerance)
+per value — update the default in `clip_boundary_detection.py` and record
+the result here once this has actually been run.
+
 ## Status
 
-Empty skeleton. No tasks, recordings, ground truth, or results yet — these
-land once Stage 2+ exist to have something to evaluate.
+Empty skeleton. No tasks, recordings, or ground truth yet — these land once
+real target-app workflows are recorded. The event-log segmentation path
+(Stage 2) needs no calibration (it's exact, event-timestamp-driven); the
+CLIP-fallback path's threshold is still unvalidated for the reason above.

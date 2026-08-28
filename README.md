@@ -8,8 +8,9 @@ the reasoning behind it, and known limitations.
 
 ## Status
 
-v1, macOS only. Currently implemented: **Stage 1 (Capture)** only. Stages
-2–5 (Segment, Interpret, Refine, Ground & output) are not built yet.
+v1, macOS only. Currently implemented: **Stage 1 (Capture)** and **Stage 2
+(Segment)**. Stages 3–5 (Interpret, Refine, Ground & output) are not built
+yet.
 
 ## Setup
 
@@ -75,14 +76,42 @@ The one thing it *cannot* do is retroactively recover OS-level input events
 recording. An imported session's manifest is stamped `has_events: false`
 precisely so nothing downstream silently assumes event-quality data exists
 for it. Per [`ARCHITECTURE.md`](ARCHITECTURE.md) §2, event logs are what
-make Stage 2+ reliable; an imported video without one will have to fall
-back to a weaker, vision-only signal once that's built — a known,
-explicitly-flagged gap, not a hidden one. (Synthesizing an event log for
-imported video via a vision model is a separate piece of future work, not
-part of this import step.)
+make segmentation exact; an imported video without one falls back to a
+weaker, vision-only signal in Stage 2 (below) — a known, explicitly-flagged
+gap, not a hidden one. (Synthesizing an event log for imported video via a
+vision model is a separate piece of future work, not part of this import
+step.)
 
 **Do not record or import sessions containing secrets** — nothing in this
 project redacts sensitive on-screen content.
+
+### Stage 2 — Segment
+
+```sh
+uv run prentice-segment eval/recordings/<session_id>
+```
+
+Reads a session directory's `session.json` and branches automatically:
+
+- **`has_events: true`** (a live capture) — clusters the logged input events
+  into action segments using timestamps and event type: click vs. drag by
+  press/release coordinate delta, scroll/type bursts merged within a gap
+  threshold, window switches as hard boundaries. No model call — exact.
+- **`has_events: false`** (an imported video) — samples frames at a fixed
+  rate, embeds them with CLIP (`open_clip`, `ViT-B-32` /
+  `laion2b_s34b_b79k`), and flags a boundary wherever cosine similarity
+  between consecutive sampled frames drops below a threshold. The starting
+  threshold (`0.90`) is a literature-informed guess, **not yet calibrated**
+  — `scripts/tune_segment_threshold.py` sweeps thresholds against
+  hand-labeled ground truth once that exists in `eval/ground_truth/`.
+
+Both paths write the same output shape to the session directory:
+
+- `segments.jsonl` — ordered segments, each tagged
+  `source: "event_log" | "inferred"` and `action_hint` (the concrete action
+  type for the event-log path; always `"scene_change"` for the inferred
+  path, since vision alone can't say *what* changed, only *that* it did)
+- `segment_meta.json` — the parameters that run used, for reproducibility
 
 ## Development
 
@@ -91,7 +120,16 @@ uv sync --extra dev
 uv run pytest
 ```
 
+The CLIP-path integration test downloads a ~600MB checkpoint and runs real
+inference, so it's opt-in rather than part of the default run:
+
+```sh
+PRENTICE_TEST_CLIP=1 uv run pytest tests/test_clip_boundary_detection.py
+```
+
 ## Eval
 
 See [`eval/README.md`](eval/README.md) for the reliability eval harness plan
-— currently an empty skeleton, populated once Stage 2+ exist to evaluate.
+— still no recordings or ground truth yet, so accuracy numbers for either
+Stage 2 path aren't reported here. `scripts/tune_segment_threshold.py` is
+ready to calibrate the CLIP threshold once ground truth exists.

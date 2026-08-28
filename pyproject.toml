@@ -10,6 +10,10 @@ dependencies = [
     "pyobjc-framework-Cocoa>=10.1; sys_platform == 'darwin'",
     "pyobjc-framework-Quartz>=10.1; sys_platform == 'darwin'",
     "pyobjc-framework-ApplicationServices>=10.1; sys_platform == 'darwin'",
+    "opencv-python>=4.9",
+    "pillow>=10.0",
+    "torch>=2.2",
+    "open_clip_torch>=2.24",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +24,7 @@ dev = [
 
 [project.scripts]
 prentice-capture = "prentice.capture.session:main"
+prentice-segment = "prentice.segment.pipeline:main"
 
 [build-system]
 requires = ["hatchling"]
