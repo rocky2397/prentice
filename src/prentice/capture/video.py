@@ -10,6 +10,7 @@ without needing to store a timestamp per frame.
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
@@ -27,11 +28,59 @@ class AVFoundationDevice:
     name: str
 
 
+@dataclass(frozen=True)
+class VideoProbe:
+    width: int
+    height: int
+    fps: float
+    duration_s: float
+
+
 def _require_ffmpeg() -> str:
     path = shutil.which("ffmpeg")
     if path is None:
         raise FFmpegNotFoundError("ffmpeg not found on PATH. Install it with `brew install ffmpeg`.")
     return path
+
+
+def _require_ffprobe() -> str:
+    path = shutil.which("ffprobe")
+    if path is None:
+        raise FFmpegNotFoundError("ffprobe not found on PATH. Install it with `brew install ffmpeg`.")
+    return path
+
+
+def probe_video(path: Path) -> VideoProbe:
+    """Read a video's actual encoded dimensions/fps/duration via ffprobe.
+
+    Used as the single source of truth for pixel dimensions on both capture
+    paths: a just-recorded avfoundation session (rather than trusting a
+    logical-points screen size times an assumed scale factor) and an
+    imported pre-recorded video (which has no other source for this at all).
+    """
+    ffprobe = _require_ffprobe()
+    proc = subprocess.run(
+        [
+            ffprobe,
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height,r_frame_rate:format=duration",
+            "-of", "json",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    data = json.loads(proc.stdout)
+    stream = data["streams"][0]
+    width = int(stream["width"])
+    height = int(stream["height"])
+    num_str, _, den_str = stream["r_frame_rate"].partition("/")
+    num, den = float(num_str), float(den_str or 1)
+    fps = num / den if den else num
+    duration_s = float(data.get("format", {}).get("duration", 0.0))
+    return VideoProbe(width=width, height=height, fps=fps, duration_s=duration_s)
 
 
 def list_avfoundation_video_devices() -> list[AVFoundationDevice]:

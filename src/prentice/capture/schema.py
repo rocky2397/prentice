@@ -65,18 +65,51 @@ CaptureEvent = Annotated[
 CaptureEventAdapter: TypeAdapter = TypeAdapter(CaptureEvent)
 
 
-class SessionManifest(BaseModel):
+class _BaseSessionManifest(BaseModel):
     session_id: str
-    epoch0_utc: str  # ISO 8601, human-readable reference only — not used for offset math
-    fps: int
-    screen_width: int
-    screen_height: int
-    backing_scale_factor: float  # video pixel dims = screen dims * this factor (e.g. 2.0 on Retina)
-    os_version: str
+    fps: float
+    video_width: int  # actual encoded pixel dimensions (from ffprobe), authoritative for both sources
+    video_height: int
     video_path: str
     events_path: str
+    has_events: bool  # whether an OS-level (or, later, synthesized) event log backs this session
+
+
+class LiveCaptureManifest(_BaseSessionManifest):
+    """A session produced by ``prentice-capture start`` on this machine."""
+
+    source: Literal["live_capture"] = "live_capture"
+    epoch0_utc: str  # ISO 8601, human-readable reference only — not used for offset math
+    os_version: str
+    screen_width: int  # logical points (NSScreen), NOT pixels — see backing_scale_factor
+    screen_height: int
+    backing_scale_factor: float  # informational only; video_width/height is the source of truth
     avfoundation_device_index: int
     avfoundation_device_name: str
+
+
+class ImportedManifest(_BaseSessionManifest):
+    """A session wrapped from a pre-recorded video via ``prentice-capture import``.
+
+    Always has ``has_events=False``: there is no way to retroactively recover
+    OS-level input events from a video that wasn't captured by this tool's
+    listeners. Per ARCHITECTURE.md, that means Stage 2+ can't use the
+    event-boundary signal for these sessions and must fall back to a
+    weaker, vision-only path — a known, explicitly-flagged reliability gap,
+    not a silent one.
+    """
+
+    source: Literal["imported"] = "imported"
+    original_video_path: str  # absolute path to the source file, for reference only (never mutated)
+    imported_at_utc: str
+
+
+SessionManifest = Annotated[
+    LiveCaptureManifest | ImportedManifest,
+    Field(discriminator="source"),
+]
+
+SessionManifestAdapter: TypeAdapter = TypeAdapter(SessionManifest)
 
 
 def load_events(path: str) -> list[CaptureEvent]:
@@ -89,3 +122,8 @@ def load_events(path: str) -> list[CaptureEvent]:
                 continue
             events.append(CaptureEventAdapter.validate_json(line))
     return events
+
+
+def load_manifest(path: str) -> SessionManifest:
+    with open(path, encoding="utf-8") as f:
+        return SessionManifestAdapter.validate_json(f.read())
