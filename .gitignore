@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.DS_Store
+._*
+
+# captured sessions (video + raw events) — never committed
+eval/recordings/*
+!eval/recordings/.gitkeep
