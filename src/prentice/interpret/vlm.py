@@ -96,6 +96,12 @@ def _parse_step_response(text: str, segment: Segment, step_id: str) -> Step:
             f"for segment {segment.segment_id}"
         )
 
+    parameters = data.get("parameters")
+    if not isinstance(parameters, dict):
+        # parameters is best-effort extra detail (typed text, scroll amount, etc.) —
+        # a malformed value here (e.g. a stray string) shouldn't invalidate the whole step
+        parameters = {}
+
     return Step(
         step_id=step_id,
         segment_id=segment.segment_id,
@@ -103,7 +109,7 @@ def _parse_step_response(text: str, segment: Segment, step_id: str) -> Step:
         intent=data.get("intent", ""),
         action_type=data["action_type"],
         target_description=data.get("target_description", ""),
-        parameters=data.get("parameters") or {},
+        parameters=parameters,
     )
 
 
