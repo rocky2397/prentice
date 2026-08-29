@@ -14,6 +14,7 @@ dependencies = [
     "pillow>=10.0",
     "torch>=2.2",
     "open_clip_torch>=2.24",
+    "mlx-vlm>=0.6.17; sys_platform == 'darwin'",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +26,7 @@ dev = [
 [project.scripts]
 prentice-capture = "prentice.capture.session:main"
 prentice-segment = "prentice.segment.pipeline:main"
+prentice-interpret = "prentice.interpret.pipeline:main"
 
 [build-system]
 requires = ["hatchling"]
