@@ -8,9 +8,9 @@ the reasoning behind it, and known limitations.
 
 ## Status
 
-v1, macOS only. Currently implemented: **Stage 1 (Capture)** and **Stage 2
-(Segment)**. Stages 3–5 (Interpret, Refine, Ground & output) are not built
-yet.
+v1, macOS only. Currently implemented: **Stage 1 (Capture)**, **Stage 2
+(Segment)**, and **Stage 3 (Interpret)**. Stages 4–5 (Refine, Ground &
+output) are not built yet.
 
 ## Setup
 
@@ -21,6 +21,16 @@ Requires macOS, [Homebrew](https://brew.sh), and
 brew install ffmpeg uv
 uv sync
 ```
+
+### Model checkpoints
+
+Stage 2's CLIP model and Stage 3's VLM are both downloaded from Hugging Face
+on first use. Rather than Hugging Face's own default (the home-directory
+cache — easy to forget about, and not necessarily the disk you meant),
+`src/prentice/__init__.py` defaults `HF_HOME` to `.model_cache/` inside the
+repo, so checkpoints live on the same disk as the project and don't
+silently pile up somewhere else. This is only a default: set `HF_HOME`
+yourself before running anything if you want a different location.
 
 ### Permissions
 
@@ -113,6 +123,38 @@ Both paths write the same output shape to the session directory:
   path, since vision alone can't say *what* changed, only *that* it did)
 - `segment_meta.json` — the parameters that run used, for reproducibility
 
+### Stage 3 — Interpret
+
+```sh
+uv run prentice-interpret eval/recordings/<session_id>
+```
+
+Reads `segments.jsonl` in order and, for each segment, sends a local VLM
+(Qwen3-VL, via [`mlx-vlm`](https://github.com/Blaizzy/mlx-vlm) — runs
+entirely on-device on Apple Silicon, no API key or cost) the segment's
+before/after keyframes, the raw logged event(s) if any (empty for the
+inferred path — the model is told explicitly that no event log exists rather
+than being given misleading empty data), and a bounded window of the last 5
+interpreted steps as context. Asks for a structured JSON step back: intent,
+action type, target description, parameters.
+
+Per [`ARCHITECTURE.md`](ARCHITECTURE.md) §Stage 3, a separate frontier-model
+(e.g. Gemini) benchmark to establish a quality ceiling is intentionally out
+of scope here — that needs an external API key and costs money per call, so
+it's a distinct, separately-scoped piece of work, not bundled into this one.
+
+Writes `steps.jsonl` (each step still carries the originating segment's
+`source: "event_log" | "inferred"`, unmodified, same propagation rule as
+Stage 2) and `interpret_meta.json` (model/params used). Also writes
+`keyframes/<segment_id>/{before,after}.jpg` into the session directory, kept
+(not a temp dir) so what the model actually saw for a given step stays
+inspectable.
+
+**First run downloads the model checkpoint** (tens of GB, from Hugging Face
+— free, but slow and disk-hungry) — the default,
+`mlx-community/Qwen3-VL-30B-A3B-Instruct-3bit`, is a MoE with only ~3B active
+params/token despite the "30B" name, chosen to stay fast on unified memory.
+
 ## Development
 
 ```sh
@@ -120,11 +162,13 @@ uv sync --extra dev
 uv run pytest
 ```
 
-The CLIP-path integration test downloads a ~600MB checkpoint and runs real
-inference, so it's opt-in rather than part of the default run:
+The CLIP-path and VLM-path integration tests each download a real checkpoint
+(~600MB and tens of GB respectively) and run real inference, so both are
+opt-in rather than part of the default run:
 
 ```sh
 PRENTICE_TEST_CLIP=1 uv run pytest tests/test_clip_boundary_detection.py
+PRENTICE_TEST_VLM=1 uv run pytest tests/test_interpret_vlm.py
 ```
 
 ## Eval

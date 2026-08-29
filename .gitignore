@@ -12,3 +12,6 @@ build/
 # captured sessions (video + raw events) — never committed
 eval/recordings/*
 !eval/recordings/.gitkeep
+
+# downloaded model checkpoints (see src/prentice/__init__.py) — never committed
+.model_cache/

@@ -2,16 +2,18 @@
 
 Reliability is the top priority for this project (see `ARCHITECTURE.md`),
 so the pipeline is measured against a small fixed set of hand-verified
-workflows rather than judged by spot-checking. This folder is currently a
-skeleton — no recordings or ground truth exist yet, since v1 only implements
-Stage 1 (Capture) and Stage 2 (Segment).
+workflows rather than judged by spot-checking. `tasks/` and `ground_truth/`
+are still empty skeletons — the target apps aren't formally defined as tasks
+yet, and nothing has been hand-labeled as ground truth.
 
 ## Layout
 
 - `tasks/` — a short spec per target workflow: which app, what the task is,
   what counts as success. One subfolder per task once defined.
-- `recordings/` — raw captured sessions (`screen.mp4` + `events.jsonl` +
-  `session.json` per session, produced by `prentice-capture start`).
+- `recordings/` — session directories (`screen.<ext>` + `events.jsonl` +
+  `session.json`, plus `segments.jsonl`/`segment_meta.json` once Stage 2 has
+  run and `steps.jsonl`/`interpret_meta.json`/`keyframes/` once Stage 3 has),
+  produced by `prentice-capture start` or `prentice-capture import`.
   Gitignored — these are large binary files, and may contain on-screen
   content the recorder didn't intend to share.
 - `ground_truth/` — the hand-verified correct step sequence for each task,
@@ -51,9 +53,26 @@ It sweeps thresholds and reports precision/recall/F1 (±500ms tolerance)
 per value — update the default in `clip_boundary_detection.py` and record
 the result here once this has actually been run.
 
+By deliberate choice, ground truth isn't being hand-labeled right now.
+Instead, `scripts/sweep_segment_thresholds.py` runs the CLIP fallback path at
+several threshold values per imported session — reusing one sample+embed
+pass per video across all of them — and writes each threshold's output
+separately for manual comparison, without scoring:
+
+```sh
+uv run python scripts/sweep_segment_thresholds.py --thresholds 0.85 0.90 0.95
+```
+
+Output lands at `eval/recordings/<session_id>/threshold_sweep/t<threshold>/`.
+
 ## Status
 
-Empty skeleton. No tasks, recordings, or ground truth yet — these land once
-real target-app workflows are recorded. The event-log segmentation path
-(Stage 2) needs no calibration (it's exact, event-timestamp-driven); the
-CLIP-fallback path's threshold is still unvalidated for the reason above.
+`tasks/` and `ground_truth/` are still empty — no target-app tasks are
+formally defined yet, and nothing has been hand-labeled, so no
+precision/recall numbers are reported here. `recordings/` does have real
+imported sessions (a browser, a file manager, and a dev tool — all run
+through Stage 2, and a subset through Stage 3), and threshold-sweep output
+for the CLIP fallback path at several thresholds, kept local per the
+`.gitignore` rule above. The event-log segmentation path (Stage 2) needs no
+calibration (it's exact, event-timestamp-driven); the CLIP-fallback path's
+threshold is still unvalidated for the reason above.

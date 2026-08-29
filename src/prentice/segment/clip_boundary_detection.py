@@ -17,11 +17,11 @@ from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 
-import cv2
 import open_clip
 import torch
 from PIL import Image
 
+from ..video_frames import iter_frames
 from .schema import Segment
 
 DEFAULT_CLIP_MODEL_NAME = "ViT-B-32"
@@ -58,31 +58,14 @@ def select_device(requested: str | None) -> str:
 
 
 def sample_frames(video_path: Path, video_fps: float, sample_fps: float) -> list[SampledFrame]:
-    """Decode sequentially and keep every Nth frame to hit ``sample_fps``.
-
-    Sequential decode rather than seeking: seeking a compressed video to an
-    arbitrary timestamp risks landing off-keyframe and decoding a smeared or
-    stale frame, which would corrupt the embedding for that sample.
-    """
-    cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        raise RuntimeError(f"could not open video for frame sampling: {video_path}")
+    """Decode sequentially (via the shared video_frames.iter_frames) and keep
+    every Nth frame to hit ``sample_fps``."""
     stride = max(1, round(video_fps / sample_fps))
     frames: list[SampledFrame] = []
-    frame_index = 0
-    try:
-        while True:
-            ok, frame_bgr = cap.read()
-            if not ok:
-                break
-            if frame_index % stride == 0:
-                frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-                image = Image.fromarray(frame_rgb)
-                t_ms = frame_index / video_fps * 1000.0
-                frames.append(SampledFrame(t_ms=t_ms, frame_index=frame_index, image=image))
-            frame_index += 1
-    finally:
-        cap.release()
+    for frame_index, image in iter_frames(video_path):
+        if frame_index % stride == 0:
+            t_ms = frame_index / video_fps * 1000.0
+            frames.append(SampledFrame(t_ms=t_ms, frame_index=frame_index, image=image))
     return frames
 
 
