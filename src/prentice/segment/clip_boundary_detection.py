@@ -113,6 +113,37 @@ def compute_similarities(embeddings: torch.Tensor) -> list[float]:
     return (embeddings[:-1] * embeddings[1:]).sum(dim=-1).tolist()
 
 
+def segments_from_similarities(
+    frames: list[SampledFrame], similarities: list[float], threshold: float, session_id: str
+) -> list[Segment]:
+    """Build segments from an already-computed similarity sequence and a threshold.
+
+    Factored out of detect_boundaries() so a threshold sweep can reuse one
+    sample+embed pass (the expensive part) across many threshold values —
+    classifying boundaries from precomputed similarities is nearly free.
+    """
+    boundary_indices = [i + 1 for i, sim in enumerate(similarities) if sim < threshold]
+    cut_points = [0, *boundary_indices, len(frames) - 1]
+
+    segments: list[Segment] = []
+    for i in range(len(cut_points) - 1):
+        start_frame = frames[cut_points[i]]
+        end_frame = frames[cut_points[i + 1]]
+        segments.append(
+            Segment(
+                segment_id=f"{session_id}-{i:04d}",
+                source="inferred",
+                action_hint="scene_change",
+                start_ms=start_frame.t_ms,
+                end_ms=end_frame.t_ms,
+                frame_start=start_frame.frame_index,
+                frame_end=end_frame.frame_index,
+                events=[],
+            )
+        )
+    return segments
+
+
 def detect_boundaries(
     video_path: Path,
     *,
@@ -141,25 +172,5 @@ def detect_boundaries(
         )
         similarities = compute_similarities(embeddings)
 
-    boundary_indices = [
-        i + 1 for i, sim in enumerate(similarities) if sim < resolved_params.similarity_threshold
-    ]
-    cut_points = [0, *boundary_indices, len(frames) - 1]
-
-    segments: list[Segment] = []
-    for i in range(len(cut_points) - 1):
-        start_frame = frames[cut_points[i]]
-        end_frame = frames[cut_points[i + 1]]
-        segments.append(
-            Segment(
-                segment_id=f"{session_id}-{i:04d}",
-                source="inferred",
-                action_hint="scene_change",
-                start_ms=start_frame.t_ms,
-                end_ms=end_frame.t_ms,
-                frame_start=start_frame.frame_index,
-                frame_end=end_frame.frame_index,
-                events=[],
-            )
-        )
+    segments = segments_from_similarities(frames, similarities, resolved_params.similarity_threshold, session_id)
     return segments, resolved_params
