@@ -46,11 +46,19 @@ def describe_element_at(x: float, y: float) -> dict[str, Any] | None:
         return None
 
 
-def _get_attr(element: Any, attribute: str) -> str | None:
+def _copy_attr(element: Any, attribute: str) -> Any:
+    """Best-effort raw AX attribute fetch — the value may itself be another
+    AXUIElement (e.g. a focused-window lookup), so this doesn't coerce it."""
     try:
         err, value = AXUIElementCopyAttributeValue(element, attribute, None)
         if err != 0 or value is None:
             return None
-        return str(value)
+        return value
     except Exception:
         return None
+
+
+def _get_attr(element: Any, attribute: str) -> str | None:
+    """Best-effort AX attribute fetch, string-coerced — for leaf (text) attributes."""
+    value = _copy_attr(element, attribute)
+    return str(value) if value is not None else None

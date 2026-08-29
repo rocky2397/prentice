@@ -45,6 +45,12 @@ def _frame_index(t_ms: float, fps: float) -> int:
     return round(t_ms / 1000.0 * fps)
 
 
+def _crosses_boundary(t1: float, t2: float, boundary_ts: list[float]) -> bool:
+    """Whether a window-switch boundary falls strictly between two timestamps
+    — a hard context break that no burst or press/release pairing may span."""
+    return any(t1 < b < t2 for b in boundary_ts)
+
+
 def _burst_cluster(events: list[CaptureEvent], gap_ms: float, hint: str, boundary_ts: list[float]) -> list[_RawSegment]:
     """Merge consecutive same-type events into bursts, splitting on either a
     gap exceeding ``gap_ms`` or a window-switch boundary falling between them
@@ -55,8 +61,7 @@ def _burst_cluster(events: list[CaptureEvent], gap_ms: float, hint: str, boundar
     current = [events[0]]
     for prev, curr in pairwise(events):
         gap = curr.t_ms - prev.t_ms
-        crosses_boundary = any(prev.t_ms < b < curr.t_ms for b in boundary_ts)
-        if gap <= gap_ms and not crosses_boundary:
+        if gap <= gap_ms and not _crosses_boundary(prev.t_ms, curr.t_ms, boundary_ts):
             current.append(curr)
         else:
             bursts.append((current[0].t_ms, current[-1].t_ms, hint, list(current)))
@@ -96,6 +101,12 @@ def cluster_events(
             # just before recording started) — its own minimal segment
             raw_segments.append((e.t_ms, e.t_ms, "click", [e]))
             continue
+        if _crosses_boundary(press.t_ms, e.t_ms, boundary_ts):
+            # a window switch between press and release is a hard context break —
+            # same rule _burst_cluster applies to scroll/type bursts, not a paired click/drag
+            raw_segments.append((press.t_ms, press.t_ms, "click", [press]))
+            raw_segments.append((e.t_ms, e.t_ms, "click", [e]))
+            continue
         dx, dy = e.x - press.x, e.y - press.y
         hint = "drag" if (dx * dx + dy * dy) ** 0.5 > params.drag_pixel_threshold else "click"
         raw_segments.append((press.t_ms, e.t_ms, hint, [press, e]))
@@ -103,10 +114,11 @@ def cluster_events(
         # press with no matching release (e.g. recording stopped mid-press)
         raw_segments.append((press.t_ms, press.t_ms, "click", [press]))
 
-    scroll_events = sorted((e for e in events if isinstance(e, MouseScrollEvent)), key=lambda e: e.t_ms)
+    # events is already globally sorted by t_ms above, so filtering preserves order
+    scroll_events = [e for e in events if isinstance(e, MouseScrollEvent)]
     raw_segments.extend(_burst_cluster(scroll_events, params.scroll_gap_ms, "scroll", boundary_ts))
 
-    key_events = sorted((e for e in events if isinstance(e, KeyEvent)), key=lambda e: e.t_ms)
+    key_events = [e for e in events if isinstance(e, KeyEvent)]
     raw_segments.extend(_burst_cluster(key_events, params.type_gap_ms, "type", boundary_ts))
 
     raw_segments.sort(key=lambda s: s[0])

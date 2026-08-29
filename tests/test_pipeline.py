@@ -35,6 +35,7 @@ def _write_session(
         video_path="screen.mp4",
         events_path="events.jsonl",
         has_events=True,
+        duration_ms=duration * 1000.0,
         os_version="test",
         screen_width=size[0],
         screen_height=size[1],

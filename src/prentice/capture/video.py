@@ -36,17 +36,10 @@ class VideoProbe:
     duration_s: float
 
 
-def _require_ffmpeg() -> str:
-    path = shutil.which("ffmpeg")
+def _require_binary(name: str) -> str:
+    path = shutil.which(name)
     if path is None:
-        raise FFmpegNotFoundError("ffmpeg not found on PATH. Install it with `brew install ffmpeg`.")
-    return path
-
-
-def _require_ffprobe() -> str:
-    path = shutil.which("ffprobe")
-    if path is None:
-        raise FFmpegNotFoundError("ffprobe not found on PATH. Install it with `brew install ffmpeg`.")
+        raise FFmpegNotFoundError(f"{name} not found on PATH. Install it with `brew install ffmpeg`.")
     return path
 
 
@@ -58,7 +51,7 @@ def probe_video(path: Path) -> VideoProbe:
     logical-points screen size times an assumed scale factor) and an
     imported pre-recorded video (which has no other source for this at all).
     """
-    ffprobe = _require_ffprobe()
+    ffprobe = _require_binary("ffprobe")
     proc = subprocess.run(
         [
             ffprobe,
@@ -85,7 +78,7 @@ def probe_video(path: Path) -> VideoProbe:
 
 def list_avfoundation_video_devices() -> list[AVFoundationDevice]:
     """Parse the device list ffmpeg prints to stderr for `-f avfoundation -list_devices true`."""
-    ffmpeg = _require_ffmpeg()
+    ffmpeg = _require_binary("ffmpeg")
     proc = subprocess.run(
         [ffmpeg, "-f", "avfoundation", "-list_devices", "true", "-i", ""],
         capture_output=True,
@@ -126,7 +119,7 @@ class FFmpegScreenRecorder:
     """Wraps an ffmpeg subprocess recording one screen via avfoundation."""
 
     def __init__(self, output_path: Path, device_index: int, fps: int = 30):
-        self._ffmpeg = _require_ffmpeg()
+        self._ffmpeg = _require_binary("ffmpeg")
         self.output_path = output_path
         self.device_index = device_index
         self.fps = fps

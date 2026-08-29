@@ -13,6 +13,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, TypeAdapter
 
 from ..capture.schema import CaptureEvent
+from ..io_utils import load_json, load_jsonl
 
 
 class Segment(BaseModel):
@@ -68,16 +69,8 @@ SegmentRunMetaAdapter: TypeAdapter = TypeAdapter(SegmentRunMeta)
 
 def load_segments(path: str) -> list[Segment]:
     """Parse a ``segments.jsonl`` file into validated Segment models, in order."""
-    segments: list[Segment] = []
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            segments.append(SegmentAdapter.validate_json(line))
-    return segments
+    return load_jsonl(path, SegmentAdapter)
 
 
 def load_segment_meta(path: str) -> SegmentRunMeta:
-    with open(path, encoding="utf-8") as f:
-        return SegmentRunMetaAdapter.validate_json(f.read())
+    return load_json(path, SegmentRunMetaAdapter)

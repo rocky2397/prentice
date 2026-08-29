@@ -112,6 +112,7 @@ def start_session(output_dir: Path, fps: int = 30) -> Path:
         video_path=video_path.name,
         events_path=events_path.name,
         has_events=True,
+        duration_ms=probe.duration_s * 1000.0,
         os_version=platform.mac_ver()[0],
         screen_width=screen_width,
         screen_height=screen_height,
@@ -157,6 +158,7 @@ def import_session(video_path: Path, output_dir: Path) -> Path:
         video_path=dest_video.name,
         events_path=events_path.name,
         has_events=False,
+        duration_ms=probe.duration_s * 1000.0,
         original_video_path=str(video_path),
         imported_at_utc=datetime.now(UTC).isoformat(),
     )

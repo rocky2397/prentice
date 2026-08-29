@@ -14,6 +14,7 @@ numbers demand it — not the starting default.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from functools import lru_cache
 from pathlib import Path
 
 import cv2
@@ -85,19 +86,31 @@ def sample_frames(video_path: Path, video_fps: float, sample_fps: float) -> list
     return frames
 
 
-def embed_frames(
-    frames: list[SampledFrame], *, clip_model_name: str, clip_pretrained: str, device: str
-) -> torch.Tensor:
-    """L2-normalized CLIP image embeddings, one row per frame, in input order."""
+@lru_cache(maxsize=4)
+def _load_clip_model(clip_model_name: str, clip_pretrained: str, device: str):
+    """Cached so a batch eval run over many sessions loads each checkpoint once."""
     model, _, preprocess = open_clip.create_model_and_transforms(
         clip_model_name, pretrained=clip_pretrained, device=device
     )
     model.eval()
+    return model, preprocess
+
+
+def embed_frames(
+    frames: list[SampledFrame], *, clip_model_name: str, clip_pretrained: str, device: str
+) -> torch.Tensor:
+    """L2-normalized CLIP image embeddings, one row per frame, in input order."""
+    model, preprocess = _load_clip_model(clip_model_name, clip_pretrained, device)
     with torch.no_grad():
         batch = torch.stack([preprocess(f.image) for f in frames]).to(device)
         embeddings = model.encode_image(batch)
         embeddings = embeddings / embeddings.norm(dim=-1, keepdim=True)
     return embeddings
+
+
+def compute_similarities(embeddings: torch.Tensor) -> list[float]:
+    """Cosine similarity between each pair of consecutive (already L2-normalized) embeddings."""
+    return (embeddings[:-1] * embeddings[1:]).sum(dim=-1).tolist()
 
 
 def detect_boundaries(
@@ -117,27 +130,16 @@ def detect_boundaries(
     frames = sample_frames(video_path, video_fps, resolved_params.sample_fps)
     if not frames:
         return [], resolved_params
-    if len(frames) == 1:
-        f = frames[0]
-        segment = Segment(
-            segment_id=f"{session_id}-0000",
-            source="inferred",
-            action_hint="scene_change",
-            start_ms=f.t_ms,
-            end_ms=f.t_ms,
-            frame_start=f.frame_index,
-            frame_end=f.frame_index,
-            events=[],
-        )
-        return [segment], resolved_params
 
-    embeddings = embed_frames(
-        frames,
-        clip_model_name=resolved_params.clip_model_name,
-        clip_pretrained=resolved_params.clip_pretrained,
-        device=resolved_params.device,
-    )
-    similarities = (embeddings[:-1] * embeddings[1:]).sum(dim=-1).tolist()
+    similarities: list[float] = []
+    if len(frames) > 1:
+        embeddings = embed_frames(
+            frames,
+            clip_model_name=resolved_params.clip_model_name,
+            clip_pretrained=resolved_params.clip_pretrained,
+            device=resolved_params.device,
+        )
+        similarities = compute_similarities(embeddings)
 
     boundary_indices = [
         i + 1 for i, sim in enumerate(similarities) if sim < resolved_params.similarity_threshold

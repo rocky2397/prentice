@@ -13,6 +13,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
 
+from ..io_utils import load_json, load_jsonl
+
 
 class AXElement(BaseModel):
     """A snapshot of the accessibility-tree element under the cursor."""
@@ -73,6 +75,7 @@ class _BaseSessionManifest(BaseModel):
     video_path: str
     events_path: str
     has_events: bool  # whether an OS-level (or, later, synthesized) event log backs this session
+    duration_ms: float  # from ffprobe at write time — the single source of truth for video duration
 
 
 class LiveCaptureManifest(_BaseSessionManifest):
@@ -114,16 +117,8 @@ SessionManifestAdapter: TypeAdapter = TypeAdapter(SessionManifest)
 
 def load_events(path: str) -> list[CaptureEvent]:
     """Parse an ``events.jsonl`` file into validated event models, in order."""
-    events: list[CaptureEvent] = []
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            events.append(CaptureEventAdapter.validate_json(line))
-    return events
+    return load_jsonl(path, CaptureEventAdapter)
 
 
 def load_manifest(path: str) -> SessionManifest:
-    with open(path, encoding="utf-8") as f:
-        return SessionManifestAdapter.validate_json(f.read())
+    return load_json(path, SessionManifestAdapter)

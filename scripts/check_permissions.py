@@ -11,10 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from prentice.capture.video import (
-    FFmpegNotFoundError,
-    list_avfoundation_video_devices,
-)
+from prentice.capture.video import FFmpegNotFoundError, find_screen_device
 
 try:
     from ApplicationServices import AXIsProcessTrusted
@@ -31,18 +28,9 @@ def main() -> int:
     else:
         print("[ OK ] ffmpeg found")
         try:
-            devices = list_avfoundation_video_devices()
-            screen_devices = [d for d in devices if "capture screen" in d.name.lower()]
-            if screen_devices:
-                print(f"[ OK ] screen capture device(s) found: {[d.name for d in screen_devices]}")
-            else:
-                print(
-                    "[FAIL] no 'Capture screen' avfoundation device found — grant Screen "
-                    "Recording permission to this terminal app in System Settings > "
-                    "Privacy & Security > Screen Recording, then restart the terminal."
-                )
-                ok = False
-        except FFmpegNotFoundError as exc:
+            device = find_screen_device()
+            print(f"[ OK ] screen capture device found: {device.name}")
+        except (FFmpegNotFoundError, RuntimeError) as exc:
             print(f"[FAIL] {exc}")
             ok = False
 

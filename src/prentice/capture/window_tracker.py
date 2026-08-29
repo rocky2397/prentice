@@ -16,9 +16,10 @@ from typing import Any
 
 from AppKit import NSWorkspace
 
+from .accessibility import _copy_attr, _get_attr
+
 try:
     from ApplicationServices import (
-        AXUIElementCopyAttributeValue,
         AXUIElementCreateSystemWide,
         kAXFocusedApplicationAttribute,
         kAXFocusedWindowAttribute,
@@ -31,22 +32,18 @@ except ImportError:
 
 
 def _focused_window_title() -> str | None:
+    """The focused window's title, via the same best-effort AX accessors
+    accessibility.py uses for the under-cursor element lookup."""
     if not _AX_AVAILABLE:
         return None
-    try:
-        system_wide = AXUIElementCreateSystemWide()
-        err, app = AXUIElementCopyAttributeValue(system_wide, kAXFocusedApplicationAttribute, None)
-        if err != 0 or app is None:
-            return None
-        err, window = AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute, None)
-        if err != 0 or window is None:
-            return None
-        err, title = AXUIElementCopyAttributeValue(window, kAXTitleAttribute, None)
-        if err != 0:
-            return None
-        return str(title) if title is not None else None
-    except Exception:
+    system_wide = AXUIElementCreateSystemWide()
+    app = _copy_attr(system_wide, kAXFocusedApplicationAttribute)
+    if app is None:
         return None
+    window = _copy_attr(app, kAXFocusedWindowAttribute)
+    if window is None:
+        return None
+    return _get_attr(window, kAXTitleAttribute)
 
 
 class WindowTracker:

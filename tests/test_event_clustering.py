@@ -84,6 +84,19 @@ def test_window_switch_hard_breaks_type_burst_even_within_gap():
     assert len(window_segments) == 1
 
 
+def test_window_switch_between_press_and_release_splits_the_click():
+    events = [
+        MouseClickEvent(t_ms=1000.0, x=10.0, y=10.0, button="Button.left", pressed=True),
+        WindowSwitchEvent(t_ms=1050.0, app_name="Safari", bundle_id="com.apple.Safari", window_title=None),
+        MouseClickEvent(t_ms=1100.0, x=10.0, y=10.0, button="Button.left", pressed=False),
+    ]
+    segments = cluster_events(events, session_id="s", fps=FPS, duration_ms=DURATION_MS)
+    click_segments = [s for s in segments if s.action_hint == "click"]
+    # press and release must not be paired into one segment spanning the window switch
+    assert len(click_segments) == 2
+    assert all(s.start_ms == s.end_ms for s in click_segments)
+
+
 def test_unmatched_press_and_release_become_minimal_segments():
     events = [
         MouseClickEvent(t_ms=500.0, x=1.0, y=1.0, button="Button.left", pressed=False),  # release, no press

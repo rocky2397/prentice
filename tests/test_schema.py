@@ -41,6 +41,7 @@ def test_imported_manifest_has_no_events_by_construction():
         video_path="screen.mov",
         events_path="events.jsonl",
         has_events=False,
+        duration_ms=60_000.0,
         original_video_path="/tmp/source.mov",
         imported_at_utc="2026-01-01T00:00:00+00:00",
     )
@@ -59,6 +60,7 @@ def test_manifest_union_discriminates_by_source():
         video_path="screen.mp4",
         events_path="events.jsonl",
         has_events=True,
+        duration_ms=90_000.0,
         os_version="26.5.1",
         screen_width=1728,
         screen_height=1117,

@@ -31,6 +31,7 @@ from prentice.segment.clip_boundary_detection import (
     DEFAULT_CLIP_MODEL_NAME,
     DEFAULT_CLIP_PRETRAINED,
     DEFAULT_SAMPLE_FPS,
+    compute_similarities,
     embed_frames,
     sample_frames,
     select_device,
@@ -60,7 +61,7 @@ def main() -> None:
         clip_pretrained=DEFAULT_CLIP_PRETRAINED,
         device=device,
     )
-    similarities = (embeddings[:-1] * embeddings[1:]).sum(dim=-1).tolist()
+    similarities = compute_similarities(embeddings)
 
     print(f"{'threshold':>10} {'precision':>10} {'recall':>10} {'f1':>10}")
     best_threshold, best_score = None, None

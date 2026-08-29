@@ -11,7 +11,6 @@ import argparse
 from pathlib import Path
 
 from ..capture.schema import load_events, load_manifest
-from ..capture.video import probe_video
 from .clip_boundary_detection import BoundaryDetectionParams, detect_boundaries
 from .event_clustering import ClusteringParams, cluster_events
 from .schema import EventLogSegmentMeta, InferredSegmentMeta, Segment, SegmentRunMeta
@@ -26,13 +25,12 @@ def segment_session(session_dir: Path) -> Path:
 
     if manifest.has_events:
         events = load_events(str(session_dir / manifest.events_path))
-        probe = probe_video(video_path)
         params = ClusteringParams()
         segments = cluster_events(
             events,
             session_id=manifest.session_id,
-            fps=probe.fps,
-            duration_ms=probe.duration_s * 1000.0,
+            fps=manifest.fps,
+            duration_ms=manifest.duration_ms,
             params=params,
         )
         meta = EventLogSegmentMeta(
