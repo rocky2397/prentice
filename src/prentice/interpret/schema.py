@@ -8,11 +8,16 @@ vs. the inferred CLIP path.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, Field, TypeAdapter
 
 from ..io_utils import load_json, load_jsonl
+
+# Shared with refine/schema.py's RefinedStep — one source of truth for the
+# set of action types either stage's VLM/LLM call may return.
+ActionType = Literal["click", "type", "scroll", "drag", "navigate", "run_command"]
+VALID_ACTION_TYPES = frozenset(get_args(ActionType))
 
 
 class Step(BaseModel):
@@ -20,7 +25,7 @@ class Step(BaseModel):
     segment_id: str
     source: Literal["event_log", "inferred"]
     intent: str
-    action_type: Literal["click", "type", "scroll", "drag", "navigate", "run_command"]
+    action_type: ActionType
     target_description: str
     parameters: dict[str, Any] = Field(default_factory=dict)
 

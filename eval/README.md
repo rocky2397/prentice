@@ -70,10 +70,17 @@ Output lands at `eval/recordings/<session_id>/threshold_sweep/t<threshold>/`.
 `tasks/` and `ground_truth/` are still empty — no target-app tasks are
 formally defined yet, and nothing has been hand-labeled, so no
 precision/recall numbers are reported here. `recordings/` does have 5 real
-imported sessions (2 browser, 1 file manager, 2 dev tool) all run through
-Stage 2 and Stage 3 in full (391 segments interpreted across all 5), plus
-threshold-sweep output for the CLIP fallback path at several thresholds —
-all kept local per the `.gitignore` rule above. The event-log segmentation
-path (Stage 2) needs no calibration (it's exact, event-timestamp-driven);
-the CLIP-fallback path's threshold is still unvalidated for the reason
-above.
+imported sessions (2 browser, 1 file manager, 2 dev tool) run through
+Stage 2, Stage 3 (391 segments interpreted across all 5), and Stage 4 in
+full, plus threshold-sweep output for the CLIP fallback path at several
+thresholds — all kept local per the `.gitignore` rule above. The event-log
+segmentation path (Stage 2) needs no calibration (it's exact,
+event-timestamp-driven); the CLIP-fallback path's threshold is still
+unvalidated for the reason above.
+
+Stage 4 (Refine) never loses or corrupts data on any of the 5 real sessions
+— verified: every session's output has 100% of raw steps traceable exactly
+once — but per-chunk JSON parse failures are still common (0 to 4 of a
+session's chunks failing), falling back to unrefined-but-flagged output
+when they do. See the README's Stage 4 section for the full per-session
+breakdown and next levers under consideration.

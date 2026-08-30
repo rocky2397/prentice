@@ -13,15 +13,15 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from functools import lru_cache
 
-from mlx_vlm import generate, load
+from mlx_vlm import generate
 from mlx_vlm.prompt_utils import apply_chat_template
-from mlx_vlm.utils import load_config
 
+from ..llm_json import strip_code_fence
 from ..segment.schema import Segment
+from ..vlm_model import load_vlm_model
 from .keyframes import SegmentKeyframes
-from .schema import Step
+from .schema import VALID_ACTION_TYPES, Step
 
 # A ~3B-active-param MoE despite the "30B" name, so it stays fast on unified
 # memory. See README for the mlx-community model card and disk footprint.
@@ -30,8 +30,6 @@ DEFAULT_CONTEXT_WINDOW = 5
 DEFAULT_MAX_TOKENS = 512
 DEFAULT_TEMPERATURE = 0.0
 
-_VALID_ACTION_TYPES = {"click", "type", "scroll", "drag", "navigate", "run_command"}
-
 
 @dataclass(frozen=True)
 class InterpretParams:
@@ -39,14 +37,6 @@ class InterpretParams:
     context_window: int = DEFAULT_CONTEXT_WINDOW
     max_tokens: int = DEFAULT_MAX_TOKENS
     temperature: float = DEFAULT_TEMPERATURE
-
-
-@lru_cache(maxsize=2)
-def _load_vlm_model(model_name: str):
-    """Cached so a batch interpret run over many sessions loads the checkpoint once."""
-    model, processor = load(model_name)
-    config = load_config(model_name)
-    return model, processor, config
 
 
 def _build_prompt(segment: Segment, prior_steps: list[Step]) -> str:
@@ -82,15 +72,13 @@ def _build_prompt(segment: Segment, prior_steps: list[Step]) -> str:
 
 
 def _parse_step_response(text: str, segment: Segment, step_id: str) -> Step:
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.strip("`").removeprefix("json").strip()
+    text = strip_code_fence(text)
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         raise ValueError(f"model did not return valid JSON for segment {segment.segment_id}: {text!r}") from exc
 
-    if data.get("action_type") not in _VALID_ACTION_TYPES:
+    if data.get("action_type") not in VALID_ACTION_TYPES:
         raise ValueError(
             f"model returned an unrecognized action_type {data.get('action_type')!r} "
             f"for segment {segment.segment_id}"
@@ -121,7 +109,7 @@ def interpret_segment(
     params: InterpretParams | None = None,
 ) -> Step:
     params = params or InterpretParams()
-    model, processor, config = _load_vlm_model(params.model_name)
+    model, processor, config = load_vlm_model(params.model_name)
 
     bounded_context = prior_steps[-params.context_window :] if params.context_window > 0 else []
     prompt = _build_prompt(segment, bounded_context)
