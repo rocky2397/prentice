@@ -112,6 +112,14 @@ def test_parse_step_response_unrecognized_action_type_raises():
         _parse_step_response(text, _inferred_segment(), "s-0000")
 
 
+def test_parse_step_response_non_dict_parameters_falls_back_to_empty():
+    # regression: a real run had the model return "parameters": "wi" (a bare
+    # string, not an object) — this must not crash the whole step
+    text = '{"intent": "x", "action_type": "click", "target_description": "y", "parameters": "wi"}'
+    step = _parse_step_response(text, _inferred_segment(), "s-0000")
+    assert step.parameters == {}
+
+
 @pytest.mark.skipif(
     shutil.which("ffmpeg") is None or not os.environ.get("PRENTICE_TEST_VLM"),
     reason="requires ffmpeg and PRENTICE_TEST_VLM=1 (downloads a large VLM checkpoint and runs real inference)",
