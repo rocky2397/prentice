@@ -27,6 +27,7 @@ dev = [
 prentice-capture = "prentice.capture.session:main"
 prentice-segment = "prentice.segment.pipeline:main"
 prentice-interpret = "prentice.interpret.pipeline:main"
+prentice-refine = "prentice.refine.pipeline:main"
 
 [build-system]
 requires = ["hatchling"]

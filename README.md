@@ -9,8 +9,8 @@ the reasoning behind it, and known limitations.
 ## Status
 
 v1, macOS only. Currently implemented: **Stage 1 (Capture)**, **Stage 2
-(Segment)**, and **Stage 3 (Interpret)**. Stages 4–5 (Refine, Ground &
-output) are not built yet.
+(Segment)**, **Stage 3 (Interpret)**, and **Stage 4 (Refine)**. Stage 5
+(Ground & output) is not built yet.
 
 ## Setup
 
@@ -155,6 +155,78 @@ inspectable.
 `mlx-community/Qwen3-VL-30B-A3B-Instruct-3bit`, is a MoE with only ~3B active
 params/token despite the "30B" name, chosen to stay fast on unified memory.
 
+### Stage 4 — Refine
+
+```sh
+uv run prentice-refine eval/recordings/<session_id>
+```
+
+Reads `steps.jsonl` and sends it in **bounded chunks of 20 steps** (unlike
+Stage 3, which reasons per-segment) to the same already-cached Qwen3-VL,
+called text-only — no images, since this stage reasons over Stage 3's
+structured output, not pixels. This satisfies `ARCHITECTURE.md` §Stage 4's
+"at least a separate call" without a second model download. Per
+`ARCHITECTURE.md`, this pass: merges fragmented/duplicate steps, drops
+noise, distinguishes fixed vs. variable parameter values, and flags steps it
+can't resolve confidently.
+
+Chunking (rather than one call per session) was a deliberate fix, not the
+starting design — real testing found a single long generation over a whole
+session reliably degrades into malformed JSON, garbled English, or
+repetition loops partway through, and this got *more* likely the longer the
+session, not just occasionally. Smaller chunks make each individual
+generation short enough that this has much less room to happen. It doesn't
+eliminate the problem (see below), but it makes the failure mode local to
+one chunk instead of catastrophic to the whole session.
+
+Writes `refined_steps.jsonl` + `refine_meta.json`. **Deliberately not 1:1
+with `steps.jsonl`** — merging and noise-dropping both change the count.
+Each `RefinedStep` keeps `source_step_ids` (traceability to exactly which
+Stage 3 steps it absorbed) and a unioned `source`
+(`event_log` | `inferred` | `mixed`).
+
+**Reliability guarantees, enforced in code, not just prompt wording** —
+every one of these was found necessary by testing against real sessions,
+not assumed in advance:
+- A merge group larger than 15 input steps is automatically flagged
+  `needs_review`, regardless of what the model claims — real testing found
+  the model sometimes collapses an entire multi-action stretch into one
+  step (up to 123 of 126 steps in one group).
+- An input step already claimed by an earlier group can never be claimed
+  again by a later one — real testing found the model sometimes appends a
+  redundant "catch-all" group re-listing steps already correctly covered
+  elsewhere.
+- **No step can be silently dropped**, at either the individual-step or
+  whole-chunk level. The model can decline to mention a step (intended for
+  genuine noise, like an accidental click), but real testing found it doing
+  this to genuine distinct actions too (a Save click, a Run click,
+  vanishing entirely). Any step the model doesn't account for — including
+  every step in a chunk whose response fails to parse outright — is passed
+  through unrefined and flagged for review. Never silently lost.
+
+**Known limitation, validated against all 5 real imported sessions**: these
+guarantees mean Stage 4 never corrupts or loses data — every session
+produces complete output with 100% of raw steps traceable exactly once —
+but merge *quality* still varies a lot, and per-chunk parse failures remain
+common even at 20-step granularity:
+
+| Session | Raw steps | Refined | Chunks that failed to parse |
+|---|---|---|---|
+| Chrome (322b4ab2) | 79 | 79 | all 4 — output is 100% passthrough |
+| Chrome (88b72c3b) | 126 | 124 | 5 of 7 |
+| VS Code (99f1919f) | 63 | 62 | 3 of 4 |
+| debugger (eca285c3) | 30 | 30 | both — 100% passthrough |
+| Finder (c9bc0323) | 93 | 67 | 0 of 5 — real merging happened |
+
+So chunking fixed the *severity* (no more total session loss, which
+happened on 3 of 5 sessions before this fix) but not the *frequency* of
+individual chunks producing bad JSON — that's still common. The safety net
+means a bad chunk degrades gracefully to "flagged, unrefined" rather than
+"lost," which is the property that actually matters, but the refining
+value-add is inconsistent session to session. Next levers, not yet
+attempted: a smaller chunk size, a stricter/more constrained output schema,
+or a different (non-VLM) text-reasoning model for this stage specifically.
+
 ## Development
 
 ```sh
@@ -168,7 +240,7 @@ opt-in rather than part of the default run:
 
 ```sh
 PRENTICE_TEST_CLIP=1 uv run pytest tests/test_clip_boundary_detection.py
-PRENTICE_TEST_VLM=1 uv run pytest tests/test_interpret_vlm.py
+PRENTICE_TEST_VLM=1 uv run pytest tests/test_interpret_vlm.py tests/test_refine_llm.py
 ```
 
 ## Eval
