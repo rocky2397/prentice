@@ -1,8 +1,9 @@
-"""Stage 4 (Refine) entrypoint: reads a session's steps.jsonl, sends the
-whole ordered sequence to the local LLM in one call to merge fragmented
-duplicates, drop noise, distinguish fixed vs. variable parameters, and flag
-low-confidence steps. Writes refined_steps.jsonl + refine_meta.json — NOT
-1:1 with steps.jsonl by design (see refine/schema.py).
+"""Stage 4 (Refine) entrypoint: reads a session's steps.jsonl and sends it
+to the local LLM in bounded chunks (see refine/llm.py — a single call over a
+whole session degrades badly) to merge fragmented duplicates, drop noise,
+distinguish fixed vs. variable parameters, and flag low-confidence steps.
+Writes refined_steps.jsonl + refine_meta.json — NOT 1:1 with steps.jsonl by
+design (see refine/schema.py).
 """
 
 from __future__ import annotations

@@ -12,8 +12,10 @@ yet, and nothing has been hand-labeled as ground truth.
   what counts as success. One subfolder per task once defined.
 - `recordings/` — session directories (`screen.<ext>` + `events.jsonl` +
   `session.json`, plus `segments.jsonl`/`segment_meta.json` once Stage 2 has
-  run and `steps.jsonl`/`interpret_meta.json`/`keyframes/` once Stage 3 has),
-  produced by `prentice-capture start` or `prentice-capture import`.
+  run, `steps.jsonl`/`interpret_meta.json`/`keyframes/` once Stage 3 has,
+  `refined_steps.jsonl`/`refine_meta.json` once Stage 4 has, and
+  `grounded_steps.jsonl`/`ground_meta.json`/`skill/SKILL.md` once Stage 5
+  has), produced by `prentice-capture start` or `prentice-capture import`.
   Gitignored — these are large binary files, and may contain on-screen
   content the recorder didn't intend to share.
 - `ground_truth/` — the hand-verified correct step sequence for each task,
@@ -77,6 +79,21 @@ thresholds — all kept local per the `.gitignore` rule above. The event-log
 segmentation path (Stage 2) needs no calibration (it's exact,
 event-timestamp-driven); the CLIP-fallback path's threshold is still
 unvalidated for the reason above.
+
+Stage 5 (Ground & output) has been run on all 5 sessions, so the pipeline
+now produces a `SKILL.md` end to end. Its output is 1 scripted step and 361
+UI-replay steps out of 362, with 0 steps carrying an accessibility
+identifier — both numbers are a measure of what Stages 1–4 hand over rather
+than of Stage 5 itself (no imported session has an event log, so no AX data
+exists to recover; and Stage 3 extracted almost no concrete parameters, so
+there is almost nothing that can be scripted without guessing). See the main
+README's Stage 5 section.
+
+Note what these counts are not: nothing here has been checked against a
+correct answer, and no generated `SKILL.md` has been executed. The two
+measurement pieces §3 of `ARCHITECTURE.md` calls for — a step-extraction
+precision/recall scorer and an end-to-end replay harness — do not exist yet
+in any form, so `results/` is still empty.
 
 Stage 4 (Refine) never loses or corrupts data on any of the 5 real sessions
 — verified: every session's output has 100% of raw steps traceable exactly
