@@ -22,6 +22,33 @@ at all — has only ever run under unit tests, never on a real session. And
 because imported sessions carry no event log, no step anywhere has an
 accessibility identifier attached.
 
+### Next work
+
+In priority order, and deliberately not started yet:
+
+1. **Record one live capture session.** This is the cheapest change with the
+   most reach. Every recording here is an imported video, so Stage 2's
+   event-log clustering path — the exact, no-model path that the whole
+   "log the events, don't infer them from pixels" premise rests on — has
+   only ever run under unit tests. One `prentice-capture start` run
+   exercises the TCC permissions, the shared clock anchor, press/release
+   pairing, burst clustering, window-switch boundaries, accessibility
+   capture, and Stage 5's AX-grounding path all at once, and would replace
+   the weakest claim in this README (that the event path needs no
+   calibration because it's exact) with evidence.
+2. **Build the eval measurement machinery** — see
+   [`eval/README.md`](eval/README.md). Note that the scoring *code* is
+   missing, not just the labels, so hand-labeling alone would not unblock
+   it.
+3. **Improve Stage 3's parameter extraction.** Stage 5 scripts 1 step in 362
+   because Stage 3 records almost no concrete values — every `navigate`
+   step that genuinely was a navigation arrived with empty `parameters`.
+   The "prefer scripts" reliability lever is gated on that extraction, not
+   on Stage 5's rule, which deliberately refuses to guess a URL from prose.
+4. **Reduce Stage 4's per-chunk parse failures** — levers listed in the
+   Stage 4 section (smaller chunks, a stricter output schema, or a
+   dedicated text-reasoning model).
+
 ## Setup
 
 Requires macOS, [Homebrew](https://brew.sh), and

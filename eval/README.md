@@ -95,6 +95,24 @@ measurement pieces §3 of `ARCHITECTURE.md` calls for — a step-extraction
 precision/recall scorer and an end-to-end replay harness — do not exist yet
 in any form, so `results/` is still empty.
 
+**What unblocking this actually takes**, since "hand-label the recordings"
+is only half of it:
+
+1. Define 2–3 tasks under `tasks/` (a browser, a file manager, a dev tool,
+   per §4) and hand-verify each one's step sequence once into
+   `ground_truth/`.
+2. Write a step-extraction scorer. `segment/boundary_eval.py` already does
+   the boundary case — greedy nearest-match within a tolerance — and the
+   step case needs the same shape over `refined_steps.jsonl`, matching on
+   step identity rather than timestamp.
+3. Write a replay harness that executes a generated `skill/SKILL.md` and
+   records whether it succeeded. This is the only number that measures the
+   pipeline end to end, and nothing in the repo approximates it today.
+4. Record at least one **live** capture first, so these numbers cover the
+   event-log path and not only the CLIP fallback — otherwise the eval
+   measures the weaker half of the design. See the main README's
+   "Next work".
+
 Stage 4 (Refine) never loses or corrupts data on any of the 5 real sessions
 — verified: every session's output has 100% of raw steps traceable exactly
 once — but per-chunk JSON parse failures are still common (0 to 4 of a
