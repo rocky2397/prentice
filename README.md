@@ -8,9 +8,19 @@ the reasoning behind it, and known limitations.
 
 ## Status
 
-v1, macOS only. Currently implemented: **Stage 1 (Capture)**, **Stage 2
-(Segment)**, **Stage 3 (Interpret)**, and **Stage 4 (Refine)**. Stage 5
-(Ground & output) is not built yet.
+v1, macOS only. All five stages are implemented: **Stage 1 (Capture)**,
+**Stage 2 (Segment)**, **Stage 3 (Interpret)**, **Stage 4 (Refine)**, and
+**Stage 5 (Ground & output)** — so the pipeline now runs end to end and
+produces a `SKILL.md`. What is *not* done is measuring it: there is still no
+hand-labeled ground truth and no replay-success harness, so no accuracy
+number is reported anywhere (see [Eval](#eval)).
+
+Two gaps worth knowing before reading any results below. Every recording in
+this repo is an **imported** video, so the event-log path — Stage 2's
+primary, exact, no-model path, and the reason the design logs input events
+at all — has only ever run under unit tests, never on a real session. And
+because imported sessions carry no event log, no step anywhere has an
+accessibility identifier attached.
 
 ## Setup
 
@@ -227,6 +237,76 @@ value-add is inconsistent session to session. Next levers, not yet
 attempted: a smaller chunk size, a stricter/more constrained output schema,
 or a different (non-VLM) text-reasoning model for this stage specifically.
 
+### Stage 5 — Ground & output
+
+```sh
+uv run prentice-ground eval/recordings/<session_id>
+```
+
+Reads `refined_steps.jsonl` and decides, per step, how it should actually be
+replayed — then emits the pipeline's real deliverable to
+`<session_dir>/skill/`: a `SKILL.md` with YAML frontmatter (name,
+description, required inputs), the ordered step list, and a verification
+section, plus a `scripts/` subfolder for any generated scripts. Also writes
+`grounded_steps.jsonl` + `ground_meta.json`.
+
+Unlike Stages 3 and 4, this stage makes **no model call at all**. Two
+reasons: the grounding decision is a rule, not a judgment, and Stage 4's
+measured failure rate (5 of 7 chunks on one session) is a poor argument for
+putting this model in the path that produces the one artifact meant to be
+trusted. A run is therefore reproducible from its inputs alone, which is
+also why `ground_meta.json` records no sampling parameters.
+
+**A step becomes a scripted action only when a concrete executable value
+appears in its `parameters`** — a `command`, a URL with an explicit scheme
+(under any key) or a well-formed hostname under a URL-named key, or an
+application name. The prose `target_description` is *never* treated as
+evidence. Turning `"the YouTube homepage"` into `open https://youtube.com`
+would produce a command that looks exactly as confident as a real one and
+runs without ever showing a human what it guessed. A wrong scripted action
+is strictly worse than an honest UI-replay step, so the rule refuses to
+guess. Everything else becomes a UI-replay action carrying the semantic
+target description as the primary handle, the accessibility identifier when
+one was captured, and raw coordinates only as an explicitly-labelled
+last-resort hint — never as the primary target, per
+[`ARCHITECTURE.md`](ARCHITECTURE.md) §Stage 5.
+
+The accessibility identifier and coordinates don't exist on `Step`, so they
+can't be read straight out of `refined_steps.jsonl`. They're recovered by
+walking the traceability chain every earlier stage maintained:
+`RefinedStep.source_step_ids` → `Step.segment_id` → `Segment.events` →
+`MouseClickEvent.ax_element`.
+
+Stage 4's single `needs_review` bool is also split into a finer signal,
+because on real sessions it is dominated by one cause that isn't a quality
+judgment at all: `unrefined_passthrough` (Stage 4's chunk failed to parse,
+or the model omitted the step) versus `model_flagged` (the step *was*
+refined and something judged it low-confidence anyway). Collapsing the two
+would make the flag useless exactly where it matters.
+
+**Results on the 5 real sessions** — this table mostly measures the quality
+of what Stages 3 and 4 hand over, not Stage 5's decision logic:
+
+| Session | Steps | Scripted | UI-replay | With AX id | Flagged |
+|---|---|---|---|---|---|
+| Chrome (322b4ab2) | 79 | 0 | 79 | 0 | 79 |
+| Chrome (88b72c3b) | 124 | 0 | 124 | 0 | 119 |
+| VS Code (99f1919f) | 62 | 0 | 62 | 0 | 60 |
+| debugger (eca285c3) | 30 | 0 | 30 | 0 | 30 |
+| Finder (c9bc0323) | 67 | 1 | 66 | 0 | 45 |
+| **Total** | **362** | **1** | **361** | **0** | **333** |
+
+One step out of 362 was scriptable: a `{"application": "Terminal.app"}`
+parameter becoming `open -a Terminal.app`. Every `navigate` step that
+plainly *was* a navigation — to YouTube, to Gmail, to a Reddit link — came
+out of Stage 3 with empty `parameters`, so no URL exists to script, and the
+rule above correctly declines to invent one. Zero steps carry an
+accessibility identifier because no imported session has an event log. The
+"prefer scripts" path that `ARCHITECTURE.md` calls the biggest reliability
+lever is therefore built and tested but essentially unexercised by this
+data — the lever it depends on is upstream parameter extraction, which is
+where the effort belongs next, not in loosening this rule.
+
 ## Development
 
 ```sh
@@ -243,9 +323,21 @@ PRENTICE_TEST_CLIP=1 uv run pytest tests/test_clip_boundary_detection.py
 PRENTICE_TEST_VLM=1 uv run pytest tests/test_interpret_vlm.py tests/test_refine_llm.py
 ```
 
+Stage 5's tests need neither a checkpoint nor ffmpeg — grounding reads only
+the earlier stages' JSON output, so a session directory can be faked from
+files alone — and run as part of the default suite.
+
 ## Eval
 
-See [`eval/README.md`](eval/README.md) for the reliability eval harness plan
-— still no recordings or ground truth yet, so accuracy numbers for either
-Stage 2 path aren't reported here. `scripts/tune_segment_threshold.py` is
-ready to calibrate the CLIP threshold once ground truth exists.
+See [`eval/README.md`](eval/README.md) for the reliability eval harness
+plan. There is still no hand-labeled ground truth, so no precision/recall or
+replay-success number is reported anywhere in this README — every figure
+above is a count of what the pipeline produced, never a measure of whether
+it was right. `scripts/tune_segment_threshold.py` is ready to calibrate the
+CLIP threshold once ground truth exists.
+
+The two pieces of measurement machinery that `ARCHITECTURE.md` §3 calls for
+are also still missing, not just the labels: `segment/boundary_eval.py`
+scores segment boundaries only, and there is no step-extraction
+precision/recall scorer and no end-to-end replay harness that executes a
+generated `SKILL.md` and reports whether it worked.
