@@ -11,43 +11,39 @@ the reasoning behind it, and known limitations.
 v1, macOS only. All five stages are implemented: **Stage 1 (Capture)**,
 **Stage 2 (Segment)**, **Stage 3 (Interpret)**, **Stage 4 (Refine)**, and
 **Stage 5 (Ground & output)** — so the pipeline now runs end to end and
-produces a `SKILL.md`. What is *not* done is measuring it: there is still no
-hand-labeled ground truth and no replay-success harness, so no accuracy
-number is reported anywhere (see [Eval](#eval)).
+produces a `SKILL.md`.
 
-Two gaps worth knowing before reading any results below. Every recording in
-this repo is an **imported** video, so the event-log path — Stage 2's
-primary, exact, no-model path, and the reason the design logs input events
-at all — has only ever run under unit tests, never on a real session. And
-because imported sessions carry no event log, no step anywhere has an
-accessibility identifier attached.
+**First measured results (Nov 2026):** three short live recordings, made by a
+script that does the tasks while prentice records. prentice found **10 of the
+11 real steps**, captured **5 of 7 concrete values** (commands, names), put
+accessibility identifiers on clicks for the first time, and turned the
+terminal task into a script that ran successfully on replay. About two in
+three of its steps are still noise, and Stage 4 failed to parse its own
+model's output on two of the three recordings. Details, and what these
+numbers don't measure: [First live test](#first-live-test).
 
 ### Next work
 
-In priority order, and deliberately not started yet:
+Done since the first version of this list: a live capture (scripted, see
+below), the step scorer, and fixes it surfaced (terminal commands scripted
+from the event log, a stale app name in the window tracker, a crash on one
+bad model answer, and a roughly 13x faster Stage 3). In priority order now:
 
-1. **Record one live capture session.** This is the cheapest change with the
-   most reach. Every recording here is an imported video, so Stage 2's
-   event-log clustering path — the exact, no-model path that the whole
-   "log the events, don't infer them from pixels" premise rests on — has
-   only ever run under unit tests. One `prentice-capture start` run
-   exercises the TCC permissions, the shared clock anchor, press/release
-   pairing, burst clustering, window-switch boundaries, accessibility
-   capture, and Stage 5's AX-grounding path all at once, and would replace
-   the weakest claim in this README (that the event path needs no
-   calibration because it's exact) with evidence.
-2. **Build the eval measurement machinery** — see
-   [`eval/README.md`](eval/README.md). Note that the scoring *code* is
-   missing, not just the labels, so hand-labeling alone would not unblock
-   it.
-3. **Improve Stage 3's parameter extraction.** Stage 5 scripts 1 step in 362
-   because Stage 3 records almost no concrete values — every `navigate`
-   step that genuinely was a navigation arrived with empty `parameters`.
-   The "prefer scripts" reliability lever is gated on that extraction, not
-   on Stage 5's rule, which deliberately refuses to guess a URL from prose.
-4. **Reduce Stage 4's per-chunk parse failures** — levers listed in the
-   Stage 4 section (smaller chunks, a stricter output schema, or a
-   dedicated text-reasoning model).
+1. **Stage 4's parse failures.** On two of the three live recordings the
+   local model's refine output wasn't valid JSON, so every step passed
+   through unrefined: no merging, no noise removal. Levers are listed in the
+   Stage 4 section (smaller chunks, a stricter output schema, a dedicated
+   text model).
+2. **Noise steps.** Two in three steps don't match a real step, mostly
+   window switches. Some come from the script bringing apps forward, so a
+   human recording will show how much of this is real.
+3. **Values Stage 3 still misses.** The browser's URL stays in prose, so the
+   navigation can't be scripted; on terminal screens the model misreads
+   text, which the event log already carries exactly.
+4. **A replay harness**, so success on replay is measured rather than
+   checked by hand (done once, for the terminal task).
+5. **One human recording per task**, to measure how optimistic the scripted
+   numbers are.
 
 ## Setup
 
@@ -191,6 +187,14 @@ inspectable.
 — free, but slow and disk-hungry) — the default,
 `mlx-community/Qwen3-VL-30B-A3B-Instruct-3bit`, is a MoE with only ~3B active
 params/token despite the "30B" name, chosen to stay fast on unified memory.
+
+**Speed and robustness.** Keyframes are scaled to 1280 px wide before the
+model sees them (full Retina frames cost about 50 s per segment), a pure
+window switch is described from the event log without a model call, a cached
+model loads offline (`PRENTICE_UPDATE_MODEL=1` to update), and an answer that
+isn't usable JSON becomes a step marked "could not interpret" instead of
+stopping the run. On the live recordings a whole run now takes about a
+minute. The trade-off: smaller frames make terminal text harder to read.
 
 ### Stage 4 — Refine
 
@@ -371,15 +375,58 @@ files alone — and run as part of the default suite.
 
 ## Eval
 
-See [`eval/README.md`](eval/README.md) for the reliability eval harness
-plan. There is still no hand-labeled ground truth, so no precision/recall or
-replay-success number is reported anywhere in this README — every figure
-above is a count of what the pipeline produced, never a measure of whether
-it was right. `scripts/tune_segment_threshold.py` is ready to calibrate the
-CLIP threshold once ground truth exists.
+See [`eval/README.md`](eval/README.md) for the layout and how to run it.
 
-The two pieces of measurement machinery that `ARCHITECTURE.md` §3 calls for
-are also still missing, not just the labels: `segment/boundary_eval.py`
-scores segment boundaries only, and there is no step-extraction
-precision/recall scorer and no end-to-end replay harness that executes a
-generated `SKILL.md` and reports whether it worked.
+### First live test
+
+**Setup.** Three short tasks (`eval/tasks/`): three commands in Terminal,
+a Wikipedia search in Chrome, and making, filling and renaming a folder in
+Finder. `prentice-scripted-run` did each task with real (synthetic) mouse and
+keyboard input while prentice recorded live, and wrote down exactly which
+steps it performed. That list is the answer key, so nobody labels anything
+by hand. `prentice-score` then pairs prentice's steps with the answer key, in
+order, by keywords, with no model involved.
+
+**Results** (`eval/results/live/`):
+
+| Task | Real steps found | prentice steps that match a real step | Right kind of action | Values captured | Clicks with an accessibility id |
+|---|---|---|---|---|---|
+| Terminal | 2 of 3 | 2 of 6 | 2 of 2 | 2 of 3 | – (no clicks) |
+| Browser | 3 of 3 | 3 of 8 | 3 of 3 | 1 of 2 | – (no clicks) |
+| Finder | 5 of 5 | 5 of 15 | 3 of 5 | 2 of 2 | 4 |
+| **All** | **10 of 11** | **10 of 29** | **8 of 10** | **5 of 7** | **4** |
+
+How to read it:
+
+- **Real steps found:** of the steps the task really had, how many prentice
+  has a step for. 10 of 11: it rarely misses an action.
+- **Steps that match a real step:** the other way round. 10 of 29 means about
+  two in three of prentice's steps are noise, mostly window switches; on two
+  recordings Stage 4 failed and so removed nothing.
+- **Values captured:** whether the step carries the concrete value a script
+  would need (the command, the folder name, the search text).
+- **The one miss:** on the Terminal recording the model described
+  `git log --oneline -3` as something else. The generated script still has
+  the exact command, because Stage 5 builds terminal commands from the logged
+  keystrokes, not from the model's text.
+- **Replay:** the Terminal task's script (`cd`, `ls`, `git log`) ran
+  successfully from another folder. That's the only replay so far, checked
+  by hand.
+
+**What these numbers don't measure:**
+
+- **A person.** A script acts cleanly: no hesitation, no corrections, no
+  wandering mouse. Human recordings will score lower.
+- **Much.** Three short tasks, one run each: a first data point, not a
+  benchmark.
+- **The matcher is a proxy.** Keywords stand in for "this is the same step"
+  and can be fooled; a step Stage 4 merges counts as one found and one
+  missed.
+
+**Before these fixes**, the same tasks scored 3 of 3 (Terminal) and 3 of 3
+(Browser) found, and the Finder run crashed on one malformed model answer
+(`eval/results/baseline/`). Terminal's drop from 3 to 2 comes from the
+smaller keyframes (the speed-up): the model read the terminal text less
+well. Keeping full-size frames for terminal windows would likely win it
+back. The recordings behind that baseline also logged
+the wrong app on every window switch, so they were recorded again.

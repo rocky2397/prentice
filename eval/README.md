@@ -1,10 +1,10 @@
 # Eval
 
 Reliability is the top priority for this project (see `ARCHITECTURE.md`),
-so the pipeline is measured against a small fixed set of hand-verified
-workflows rather than judged by spot-checking. `tasks/` and `ground_truth/`
-are still empty skeletons — the target apps aren't formally defined as tasks
-yet, and nothing has been hand-labeled as ground truth.
+so the pipeline is measured against a small fixed set of known workflows
+rather than judged by spot-checking: three tasks in `tasks/`, each with an
+answer key (written by the scripted run, or drafted in `ground_truth/` for
+human recordings).
 
 ## Layout
 
@@ -69,10 +69,22 @@ Output lands at `eval/recordings/<session_id>/threshold_sweep/t<threshold>/`.
 
 ## Status
 
-`tasks/` and `ground_truth/` are still empty — no target-app tasks are
-formally defined yet, and nothing has been hand-labeled, so no
-precision/recall numbers are reported here. `recordings/` does have 5 real
-imported sessions (2 browser, 1 file manager, 2 dev tool) run through
+**First live results exist** (`results/live/`, written up in the main
+README's "First live test"): three tasks in `tasks/`, recorded by
+`prentice-scripted-run`, which writes an exact answer key
+(`answer_key.json`, status `"scripted"`) into each session folder, scored by
+`prentice-score`. Found 10 of 11 real steps; 10 of 29 of prentice's steps
+match a real one; 5 of 7 values captured. `results/baseline/` holds the
+scores from before the fixes those runs surfaced.
+
+Still to do: a replay harness (one replay so far, by hand) and human
+recordings, since a script acts more cleanly than a person. The draft
+answer keys in `ground_truth/` are for those human recordings.
+
+The five imported sessions below predate all of this and remain local.
+
+**The imported sessions (history).** Before the live test, `recordings/`
+held 5 real imported sessions (2 browser, 1 file manager, 2 dev tool) run through
 Stage 2, Stage 3 (391 segments interpreted across all 5), and Stage 4 in
 full, plus threshold-sweep output for the CLIP fallback path at several
 thresholds — all kept local per the `.gitignore` rule above. The event-log
@@ -89,19 +101,9 @@ exists to recover; and Stage 3 extracted almost no concrete parameters, so
 there is almost nothing that can be scripted without guessing). See the main
 README's Stage 5 section.
 
-Note what these counts are not: nothing here has been checked against a
-correct answer, and no generated `SKILL.md` has been executed. The two
-measurement pieces §3 of `ARCHITECTURE.md` calls for — a step-extraction
-precision/recall scorer and an end-to-end replay harness — do not exist yet
-in any form, so `results/` is still empty.
-
-**In progress (live-test prep):** three tasks are defined in `tasks/`
-(terminal, browser, Finder), each with a draft answer key in
-`ground_truth/<task>/steps.json` (marked `"draft"` until checked against a
-recording), and a step scorer exists: `prentice-score <session>
-<answer key>` (`src/prentice/evaluate/steps.py`). How to record the live
-sessions: [`RECORDING.md`](RECORDING.md). The replay harness (point 3 below)
-is still to do.
+At the time, nothing here had been checked against a correct answer. The
+step scorer now exists (`prentice-score`); the end-to-end replay harness
+`ARCHITECTURE.md` §3 also calls for does not yet.
 
 **What unblocking this actually takes**, since "hand-label the recordings"
 is only half of it:
