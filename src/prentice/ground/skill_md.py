@@ -32,17 +32,97 @@ SCRIPTS_DIR_NAME = "scripts"
 # — generic UI furniture, verbs, and articles. Removing them leaves the words
 # that actually distinguish one recorded workflow from another (app names,
 # specific surfaces), which is what the auto-derived skill name is built from.
-_NAME_STOPWORDS = frozenset([
-    "a", "an", "and", "at", "bar", "box", "by", "clicked", "clicking", "click", "content",
-    "contents", "current", "display", "e.g", "element", "entry", "field", "first", "for",
-    "from", "icon", "in", "interface", "into", "item", "items", "its", "list", "main", "menu",
-    "new", "of", "on", "onto", "open", "opened", "option", "options", "page", "panel", "pane",
-    "region", "row", "screen", "scrollbar", "second", "section", "select", "selected",
-    "specific", "such", "the", "their", "them", "then", "this", "to", "toolbar", "top", "user",
-    "various", "view", "viewing", "window", "with", "within", "button", "area", "application",
-    "app", "file", "files", "folder", "folders", "link", "links", "text", "value", "where",
-    "which", "while", "who", "whose", "after", "before", "during"
-])
+_NAME_STOPWORDS = frozenset(
+    [
+        "a",
+        "an",
+        "and",
+        "at",
+        "bar",
+        "box",
+        "by",
+        "clicked",
+        "clicking",
+        "click",
+        "content",
+        "contents",
+        "current",
+        "display",
+        "e.g",
+        "element",
+        "entry",
+        "field",
+        "first",
+        "for",
+        "from",
+        "icon",
+        "in",
+        "interface",
+        "into",
+        "item",
+        "items",
+        "its",
+        "list",
+        "main",
+        "menu",
+        "new",
+        "of",
+        "on",
+        "onto",
+        "open",
+        "opened",
+        "option",
+        "options",
+        "page",
+        "panel",
+        "pane",
+        "region",
+        "row",
+        "screen",
+        "scrollbar",
+        "second",
+        "section",
+        "select",
+        "selected",
+        "specific",
+        "such",
+        "the",
+        "their",
+        "them",
+        "then",
+        "this",
+        "to",
+        "toolbar",
+        "top",
+        "user",
+        "various",
+        "view",
+        "viewing",
+        "window",
+        "with",
+        "within",
+        "button",
+        "area",
+        "application",
+        "app",
+        "file",
+        "files",
+        "folder",
+        "folders",
+        "link",
+        "links",
+        "text",
+        "value",
+        "where",
+        "which",
+        "while",
+        "who",
+        "whose",
+        "after",
+        "before",
+        "during",
+    ]
+)
 
 _SLUG_SPLIT = re.compile(r"[^a-z0-9]+")
 
@@ -191,7 +271,9 @@ def _render_step(step: GroundedStep, number: int) -> str:
         rendered = ", ".join(f"`{k}` = `{v!r}`" for k, v in step.parameters.items())
         lines.append(f"- **Parameters:** {rendered}")
     if step.variable_parameters:
-        lines.append(f"- **Variable inputs:** {', '.join(f'`{v}`' for v in step.variable_parameters)}")
+        lines.append(
+            f"- **Variable inputs:** {', '.join(f'`{v}`' for v in step.variable_parameters)}"
+        )
     if step.needs_review and step.review_reason:
         lines.append(f"- **Review reason:** {step.review_reason}")
 

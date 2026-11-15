@@ -298,6 +298,17 @@ one was captured, and raw coordinates only as an explicitly-labelled
 last-resort hint — never as the primary target, per
 [`ARCHITECTURE.md`](ARCHITECTURE.md) §Stage 5.
 
+**One source is stronger than `parameters`: the event log itself.** When a
+step's keystrokes were typed in a terminal app (the last window switch before
+it names one) and every line ends with Enter, the typed text is the command
+that ran, character for character, so Stage 5 scripts it and labels the step
+`run_command`, whatever the model called it. Anything that makes the text
+uncertain (Tab completion, arrow keys, shortcuts, a click or window switch in
+between, a line without Enter) leaves the step as UI replay. On the first live
+recording (`eval/tasks/terminal-git`) this turned 0 of 3 commands into 3 of 3
+scripts, with the exact text; the model's own transcription had dropped the
+leading `/` of a path.
+
 The accessibility identifier and coordinates don't exist on `Step`, so they
 can't be read straight out of `refined_steps.jsonl`. They're recovered by
 walking the traceability chain every earlier stage maintained:

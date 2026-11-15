@@ -16,7 +16,7 @@ from pathlib import Path
 from ..capture.schema import load_manifest
 from ..refine.schema import load_refined_steps
 from .grounding import ground_step
-from .provenance import evidence_for, load_segments_by_step_id
+from .provenance import evidence_for, load_segments_by_step_id, load_window_switches
 from .schema import GroundedStep, GroundRunMeta
 from .skill_md import (
     SCRIPTS_DIR_NAME,
@@ -44,11 +44,12 @@ def ground_session(
     manifest = load_manifest(str(session_dir / "session.json"))
     refined_steps = load_refined_steps(str(session_dir / "refined_steps.jsonl"))
     segments_by_step_id = load_segments_by_step_id(session_dir)
+    window_switches = load_window_switches(session_dir)
 
     grounded: list[GroundedStep] = [
         ground_step(
             step,
-            evidence_for(step, segments_by_step_id),
+            evidence_for(step, segments_by_step_id, window_switches),
             step_id=f"grounded-{i:04d}",
         )
         for i, step in enumerate(refined_steps)

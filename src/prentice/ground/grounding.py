@@ -17,6 +17,12 @@ repo, this rule scripts almost nothing — the VLM populated no URLs at all
 (see README) — and that low number is the correct, honest result rather
 than a shortfall to engineer around.
 
+The one source stronger than ``parameters`` is the event log itself: a line
+typed in a terminal app and ended with Enter is the command that ran,
+character for character (see provenance.py). When that evidence exists it
+wins over the model's transcription, and the step is labelled run_command
+whatever the model called it.
+
 Fully deterministic and model-free, so a grounding run is reproducible from
 its inputs alone.
 """
@@ -138,7 +144,12 @@ def ground_step(
     needs_review = step.needs_review
     review_reason = step.review_reason
 
-    script = derive_script(step)
+    action_type = step.action_type
+    if evidence.terminal_command:
+        script = evidence.terminal_command
+        action_type = "run_command"
+    else:
+        script = derive_script(step)
 
     if script is None and step.action_type == "run_command":
         # The interpreter believed a command ran here but captured no command
@@ -156,7 +167,7 @@ def ground_step(
             source_step_ids=step.source_step_ids,
             source=step.source,
             intent=step.intent,
-            action_type=step.action_type,
+            action_type=action_type,
             grounding="script",
             confidence=confidence,
             needs_review=needs_review,
@@ -171,7 +182,7 @@ def ground_step(
         source_step_ids=step.source_step_ids,
         source=step.source,
         intent=step.intent,
-        action_type=step.action_type,
+        action_type=action_type,
         grounding="ui_replay",
         confidence=confidence,
         needs_review=needs_review,
