@@ -2,11 +2,35 @@
 
 [![CI](https://github.com/rocky2397/prentice/actions/workflows/ci.yml/badge.svg)](https://github.com/rocky2397/prentice/actions/workflows/ci.yml)
 
-Records a user's desktop workflow — screen video + OS-level input events,
-explicit start/stop — and converts it into a `SKILL.md` that Claude Code can
-use to replicate the task. Personal portfolio project; see
-[`ARCHITECTURE.md`](ARCHITECTURE.md) for the full five-stage pipeline design,
-the reasoning behind it, and known limitations.
+**Show your Mac a task once; get a skill Claude Code can repeat.**
+prentice records you doing something on your computer and turns the recording
+into a `SKILL.md`: step-by-step instructions, with ready-to-run scripts where
+the recording proves exactly what to run.
+
+## In 30 seconds
+
+1. **Record.** You start and stop it yourself. It saves the screen plus every
+   click and keystroke, and for each click, which button or field was hit.
+2. **Split into steps,** using those logged clicks and keys: exact, no
+   guessing from video.
+3. **Describe each step** with a vision model that runs locally on the Mac:
+   no API key, nothing leaves the machine.
+4. **Clean up:** merge duplicates and flag steps the model wasn't sure about.
+5. **Write the skill.** A step becomes a script only when the recording
+   proves the exact command (for example, a command typed into Terminal and
+   run with Enter). Everything else becomes an instruction for Claude Code to
+   carry out in the app. It never turns a description into a guessed command.
+
+**Does it work?** Partly, and it's measured: in a first live test it found
+10 of the 11 real steps, and the terminal task's script ran on replay. But
+about two in three of its steps are still noise, so it's a research prototype,
+not a tool to trust yet. Details below.
+
+**Example output:** [the skill prentice wrote for a three-command terminal
+task](docs/example/terminal-git/).
+
+macOS only. The full design and its trade-offs are in
+[`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Status
 

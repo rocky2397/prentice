@@ -226,10 +226,21 @@ def find_center(
 # ---------------------------------------------------------------- the tasks
 
 
-def terminal_git(d: Driver, plan: Plan) -> bool:
-    osascript('tell application "Terminal" to do script ""')
-    osascript('tell application "Terminal" to activate')
+def prepare_terminal() -> None:
+    """Open the task's Terminal window before recording starts.
+
+    The shell gets a neutral prompt ("prentice %" instead of user@host) and a
+    cleared screen, so the recording shows no user name, computer name, home
+    path or login line. AppleScript passes this to the shell directly; it
+    isn't typed, so it isn't part of the recorded task.
+    """
+    osascript("tell application \"Terminal\" to do script \"export PROMPT='%1~ %# '; clear\"")
     osascript('tell application "Terminal" to set bounds of front window to {120, 120, 1000, 640}')
+    time.sleep(1.5)
+
+
+def terminal_git(d: Driver, plan: Plan) -> bool:
+    osascript('tell application "Terminal" to activate')
     d.wait(1.5)
     for what, command, keywords, expect in [
         ("cd into the prentice folder", f'cd "{REPO}"', ["cd", "prentice"], "cd"),
@@ -470,6 +481,8 @@ def run(tasks: list[str], browser: str) -> list[dict]:
             if task == "finder-folder":
                 prepare_sandbox()
             plan = Plan(task)
+            if task == "terminal-git":
+                prepare_terminal()
             proc, session = start_capture()
             success = False
             try:
