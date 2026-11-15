@@ -32,8 +32,9 @@ keystroke while it records. A tutorial video has no such log, so prentice
 would have to infer each action from the picture. That path exists but isn't
 measured yet, and it's weaker in a second way: a command typed during your own
 recording is rebuilt from the logged keystrokes, but from a video alone it
-could only come from the model reading the screen, which can misread it. So a
-skill made from a tutorial needs a human read before anything in it runs.
+could only come from the model reading the screen, which can misread it. So
+prentice flags every script of that kind for review: in a skill made from a
+tutorial, nothing runs before a human has read it.
 
 ## In 30 seconds
 
@@ -47,8 +48,9 @@ skill made from a tutorial needs a human read before anything in it runs.
 5. **Write the skill.** A step becomes a script only when there is an exact
    command or address: best, a command typed into Terminal and run with Enter,
    rebuilt from the logged keystrokes; otherwise one the model read off the
-   screen. Everything else becomes an instruction for Claude Code to carry out
-   in the app. It never turns a description into a guessed command.
+   screen, which is then always flagged for review. Everything else becomes an
+   instruction for Claude Code to carry out in the app. It never turns a
+   description into a guessed command.
 
 ```mermaid
 flowchart LR
@@ -378,7 +380,10 @@ evidence. Turning `"the YouTube homepage"` into `open https://youtube.com`
 would produce a command that looks exactly as confident as a real one and
 runs without ever showing a human what it guessed. A wrong scripted action
 is strictly worse than an honest UI-replay step, so the rule refuses to
-guess. Everything else becomes a UI-replay action carrying the semantic
+guess. And because these values are still the model's reading of the screen,
+which can be wrong, every such script is flagged `needs-review`, whatever
+Stage 4 said; only a command rebuilt from the event log (next paragraph) runs
+unflagged. Everything else becomes a UI-replay action carrying the semantic
 target description as the primary handle, the accessibility identifier when
 one was captured, and raw coordinates only as an explicitly-labelled
 last-resort hint — never as the primary target, per
