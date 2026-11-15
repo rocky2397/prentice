@@ -15,6 +15,25 @@ wrote that a person wouldn't count (mostly window-title changes). Both are
 shown because cutting that noise is still open work. Full output:
 [`docs/example/browser-wikipedia`](docs/example/browser-wikipedia/).
 
+## Why prentice
+
+Claude only knows what was in its training data. New software, new versions
+and changed setup screens come later, and often the only up-to-date guide is
+someone showing it on video.
+
+The idea behind prentice: instead of watching a tutorial and copying it click
+by click, give the recording to prentice and get a skill Claude Code can carry
+out for you. The recording can be of you doing the task once, or eventually a
+tutorial video you already have.
+
+**Where it stands:** your own recordings work today and are measured (see
+[First live test](#first-live-test)), because prentice logs every click and
+keystroke while it records. A tutorial video has no such log, so prentice
+would have to infer each action from the picture. That path exists but isn't
+measured yet. Either way, a step only becomes a runnable script when the log
+proves the exact command; anything inferred from video stays an instruction
+to review, never a command run on trust.
+
 ## In 30 seconds
 
 1. **Record.** You start and stop it yourself. It saves the screen plus every
