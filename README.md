@@ -7,6 +7,14 @@ prentice records you doing something on your computer and turns the recording
 into a `SKILL.md`: step-by-step instructions, with ready-to-run scripts where
 the recording proves exactly what to run.
 
+![A Wikipedia search recorded on the left; the steps prentice writes to SKILL.md appear on the right as each action happens](docs/demo/wikipedia-input-output.gif)
+
+A real run, unedited: open Wikipedia, search "Large language model", scroll.
+Green lines match the three real actions; grey lines are extra steps prentice
+wrote that a person wouldn't count (mostly window-title changes). Both are
+shown because cutting that noise is still open work. Full output:
+[`docs/example/browser-wikipedia`](docs/example/browser-wikipedia/).
+
 ## In 30 seconds
 
 1. **Record.** You start and stop it yourself. It saves the screen plus every
