@@ -30,9 +30,10 @@ tutorial video you already have.
 [First live test](#first-live-test)), because prentice logs every click and
 keystroke while it records. A tutorial video has no such log, so prentice
 would have to infer each action from the picture. That path exists but isn't
-measured yet. Either way, a step only becomes a runnable script when the log
-proves the exact command; anything inferred from video stays an instruction
-to review, never a command run on trust.
+measured yet, and it's weaker in a second way: a command typed during your own
+recording is rebuilt from the logged keystrokes, but from a video alone it
+could only come from the model reading the screen, which can misread it. So a
+skill made from a tutorial needs a human read before anything in it runs.
 
 ## In 30 seconds
 
@@ -43,10 +44,11 @@ to review, never a command run on trust.
 3. **Describe each step** with a vision model that runs locally on the Mac:
    no API key, nothing leaves the machine.
 4. **Clean up:** merge duplicates and flag steps the model wasn't sure about.
-5. **Write the skill.** A step becomes a script only when the recording
-   proves the exact command (for example, a command typed into Terminal and
-   run with Enter). Everything else becomes an instruction for Claude Code to
-   carry out in the app. It never turns a description into a guessed command.
+5. **Write the skill.** A step becomes a script only when there is an exact
+   command or address: best, a command typed into Terminal and run with Enter,
+   rebuilt from the logged keystrokes; otherwise one the model read off the
+   screen. Everything else becomes an instruction for Claude Code to carry out
+   in the app. It never turns a description into a guessed command.
 
 ```mermaid
 flowchart LR
