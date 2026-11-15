@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import signal
 import subprocess
@@ -404,25 +405,50 @@ def remove_sandbox() -> None:
     shutil.rmtree(SANDBOX)
 
 
-def start_capture() -> tuple[subprocess.Popen, str]:
-    exe = Path(sys.executable).parent / "prentice-capture"
+def start_capture(
+    timeout: float = 20.0, exe: Path | None = None, settle: float = 2.5
+) -> tuple[subprocess.Popen, str]:
+    """Start `prentice-capture start`; fail with its output if it isn't recording in time."""
+    import queue
+
+    exe = exe or Path(sys.executable).parent / "prentice-capture"
     proc = subprocess.Popen(
         [str(exe), "start", "--output-dir", str(RECORDINGS)],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        # Without this the child's prints sit in a pipe buffer and we'd wait forever.
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
     )
+    lines: queue.Queue[str | None] = queue.Queue()
+
+    def drain() -> None:  # keeps reading for the whole capture, so the pipe never fills
+        for line in proc.stdout:
+            lines.put(line)
+        lines.put(None)
+
+    threading.Thread(target=drain, daemon=True).start()
+    seen: list[str] = []
     session = None
-    for line in proc.stdout:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            line = lines.get(timeout=0.2)
+        except queue.Empty:
+            continue
+        if line is None:
+            break  # the recorder exited
+        seen.append(line.rstrip())
         if line.startswith("[prentice] session:"):
             session = line.split(":", 1)[1].strip()
-        if "press Ctrl+C to stop" in line:
-            break
-    if session is None:
-        proc.kill()
-        raise RuntimeError("prentice-capture did not start")
-    time.sleep(2.5)  # let the screen recorder settle before the first action
-    return proc, session
+        if "press Ctrl+C to stop" in line and session:
+            time.sleep(settle)  # let the screen recorder settle before the first action
+            return proc, session
+    proc.kill()
+    raise RuntimeError(
+        "prentice-capture did not start recording. Its output:\n  "
+        + "\n  ".join(seen or ["(nothing)"])
+    )
 
 
 def stop_capture(proc: subprocess.Popen) -> None:
@@ -473,6 +499,22 @@ def run(tasks: list[str], browser: str) -> list[dict]:
     return results
 
 
+TRUST_HELP = """\
+This terminal app isn't trusted for Accessibility, so the script can't send or
+watch mouse and keyboard input. In System Settings > Privacy & Security, make
+sure the terminal you're using is switched ON under Accessibility and under
+Input Monitoring (if it's already on, switch it off and on again), then quit the
+terminal completely (Command-Q), reopen it and run this again."""
+
+
+def trusted() -> bool:
+    try:
+        from ApplicationServices import AXIsProcessTrusted
+    except ImportError:
+        return False
+    return bool(AXIsProcessTrusted())
+
+
 def dry_run(browser: str) -> int:
     ok = True
 
@@ -486,16 +528,7 @@ def dry_run(browser: str) -> int:
 
     check("prentice-capture installed", (Path(sys.executable).parent / "prentice-capture").exists())
     check("ffmpeg on PATH", shutil.which("ffmpeg") is not None, "brew install ffmpeg")
-    try:
-        from ApplicationServices import AXIsProcessTrusted
-
-        check(
-            "Accessibility granted to this terminal",
-            bool(AXIsProcessTrusted()),
-            "see eval/RECORDING.md",
-        )
-    except ImportError:
-        check("pyobjc available", False, "uv sync")
+    check("Accessibility granted to this terminal", trusted(), "\n" + TRUST_HELP)
     for app in ["Terminal", "Finder", browser]:
         found = (
             subprocess.run(
@@ -525,6 +558,9 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.dry_run:
         sys.exit(dry_run(args.browser))
+
+    if not trusted():
+        sys.exit(TRUST_HELP)
 
     print(
         "[scripted] in 5 seconds the computer takes over mouse and keyboard for about 3 minutes.\n"
