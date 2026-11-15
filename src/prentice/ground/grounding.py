@@ -23,6 +23,12 @@ character for character (see provenance.py). When that evidence exists it
 wins over the model's transcription, and the step is labelled run_command
 whatever the model called it.
 
+Every other script came from the model reading the screen, which can misread
+(it once dropped a character from a path), so such a step is always flagged
+for review, whatever Stage 4 said. That keeps the promise for imported
+videos, where the screen is the only source there is: nothing derived from
+pixels runs before a human has read it.
+
 Fully deterministic and model-free, so a grounding run is reproducible from
 its inputs alone.
 """
@@ -137,6 +143,12 @@ def _ui_target(step: RefinedStep, evidence: StepEvidence) -> UITarget:
     )
 
 
+SCREEN_READ_REASON = (
+    "script comes from the model's reading of the screen, not from logged "
+    "keystrokes; check it before running"
+)
+
+
 def ground_step(
     step: RefinedStep, evidence: StepEvidence = EMPTY_EVIDENCE, *, step_id: str | None = None
 ) -> GroundedStep:
@@ -155,6 +167,9 @@ def ground_step(
         script = None
     else:
         script = derive_script(step)
+        if script is not None:
+            needs_review = True
+            review_reason = review_reason or SCREEN_READ_REASON
 
     if script is None and step.action_type == "run_command":
         # The interpreter believed a command ran here but captured no command

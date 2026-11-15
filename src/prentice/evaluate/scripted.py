@@ -226,10 +226,21 @@ def find_center(
 # ---------------------------------------------------------------- the tasks
 
 
-def terminal_git(d: Driver, plan: Plan) -> bool:
-    osascript('tell application "Terminal" to do script ""')
-    osascript('tell application "Terminal" to activate')
+def prepare_terminal() -> None:
+    """Open the task's Terminal window before recording starts.
+
+    The shell gets a neutral prompt ("prentice %" instead of user@host) and a
+    cleared screen, so the recording shows no user name, computer name, home
+    path or login line. AppleScript passes this to the shell directly; it
+    isn't typed, so it isn't part of the recorded task.
+    """
+    osascript('tell application "Terminal" to do script "export PROMPT=\'%1~ %# \'; clear"')
     osascript('tell application "Terminal" to set bounds of front window to {120, 120, 1000, 640}')
+    time.sleep(1.5)
+
+
+def terminal_git(d: Driver, plan: Plan) -> bool:
+    osascript('tell application "Terminal" to activate')
     d.wait(1.5)
     for what, command, keywords, expect in [
         ("cd into the prentice folder", f'cd "{REPO}"', ["cd", "prentice"], "cd"),
@@ -248,15 +259,40 @@ def terminal_git(d: Driver, plan: Plan) -> bool:
     return "--oneline" in contents and "fatal" not in contents
 
 
-def browser_wikipedia(d: Driver, plan: Plan, browser: str) -> bool:
+def prepare_browser(browser: str) -> None:
+    """Open the task's browser window before recording starts.
+
+    Chrome gets a guest window: no history (so typing a URL shows no
+    suggestions from your browsing), no shortcuts, bookmarks or extensions,
+    and its data is deleted when it closes. Safari has no guest mode, so a
+    Safari recording can show your favourites and history; prefer Chrome for
+    anything you'll share.
+    """
     if browser == "Safari":
         osascript('tell application "Safari" to make new document')
     else:
-        osascript(f'tell application "{browser}" to make new window')
-    osascript(f'tell application "{browser}" to activate')
+        subprocess.run(["open", "-na", browser, "--args", "--guest"], check=True)
+        time.sleep(3)
     osascript(
         f'tell application "{browser}" to set bounds of front window to {{140, 90, 1280, 860}}'
     )
+    time.sleep(1)
+
+
+def close_task_window(browser: str) -> None:
+    """Close the window this task used, matched by its page title, never another one."""
+    if browser == "Safari":
+        return
+    try:
+        osascript(
+            f'tell application "{browser}" to close (every window whose title contains "Large language model")'
+        )
+    except RuntimeError:
+        pass  # already closed, or the title didn't match: leave everything as it is
+
+
+def browser_wikipedia(d: Driver, plan: Plan, browser: str) -> bool:
+    osascript(f'tell application "{browser}" to activate')
     d.wait(1.5)
 
     plan.steps.append(
@@ -470,6 +506,10 @@ def run(tasks: list[str], browser: str) -> list[dict]:
             if task == "finder-folder":
                 prepare_sandbox()
             plan = Plan(task)
+            if task == "terminal-git":
+                prepare_terminal()
+            elif task == "browser-wikipedia":
+                prepare_browser(browser)
             proc, session = start_capture()
             success = False
             try:
@@ -487,6 +527,8 @@ def run(tasks: list[str], browser: str) -> list[dict]:
                 )
                 if task == "finder-folder" and SANDBOX.exists():
                     remove_sandbox()
+                if task == "browser-wikipedia":
+                    close_task_window(browser)
             results.append({"task": task, "session": session, "succeeded": success})
             print(
                 f"[scripted] {task}: {'succeeded' if success else 'DID NOT succeed'} -> {session}"
@@ -515,7 +557,7 @@ def trusted() -> bool:
     return bool(AXIsProcessTrusted())
 
 
-def dry_run(browser: str) -> int:
+def dry_run(browser: str, tasks: list[str] = TASKS) -> int:
     ok = True
 
     def check(label: str, passed: bool, hint: str = "") -> None:
@@ -539,7 +581,7 @@ def dry_run(browser: str) -> int:
         check(f"{app} installed", found)
     check(f"{SANDBOX} free to use", not SANDBOX.exists() or SANDBOX.is_dir())
     print()
-    print("Would run, in order:", ", ".join(TASKS), f"(browser: {browser}); nothing was touched.")
+    print("Would run, in order:", ", ".join(tasks), f"(browser: {browser}); nothing was touched.")
     return 0 if ok else 1
 
 
@@ -557,14 +599,15 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     if args.dry_run:
-        sys.exit(dry_run(args.browser))
+        sys.exit(dry_run(args.browser, args.task or TASKS))
 
     if not trusted():
         sys.exit(TRUST_HELP)
 
     print(
         "[scripted] in 5 seconds the computer takes over mouse and keyboard for about 3 minutes.\n"
-        "[scripted] don't touch anything; press Esc to abort. Private windows should be closed or hidden."
+        "[scripted] don't touch anything; press Esc to abort. Private windows should be closed or hidden.\n"
+        "[scripted] the browser task uses a Chrome guest window (no history, bookmarks or extensions)."
     )
     time.sleep(5)
     results = run(args.task or TASKS, args.browser)

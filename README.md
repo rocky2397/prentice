@@ -2,11 +2,93 @@
 
 [![CI](https://github.com/rocky2397/prentice/actions/workflows/ci.yml/badge.svg)](https://github.com/rocky2397/prentice/actions/workflows/ci.yml)
 
-Records a user's desktop workflow — screen video + OS-level input events,
-explicit start/stop — and converts it into a `SKILL.md` that Claude Code can
-use to replicate the task. Personal portfolio project; see
-[`ARCHITECTURE.md`](ARCHITECTURE.md) for the full five-stage pipeline design,
-the reasoning behind it, and known limitations.
+**Show your Mac a task once; get a skill Claude Code can repeat.**
+prentice records you doing something on your computer and turns the recording
+into a `SKILL.md`: step-by-step instructions, with ready-to-run scripts where
+the recording proves exactly what to run.
+
+![A Wikipedia search recorded on the left; the steps prentice writes to SKILL.md appear on the right as each action happens](docs/demo/wikipedia-input-output.gif)
+
+A real run, unedited: open Wikipedia, search "Large language model", scroll.
+Green lines match the three real actions; grey lines are extra steps prentice
+wrote that a person wouldn't count (mostly window-title changes). Both are
+shown because cutting that noise is still open work. Full output:
+[`docs/example/browser-wikipedia`](docs/example/browser-wikipedia/).
+
+## Why prentice
+
+Claude only knows what was in its training data. New software, new versions
+and changed setup screens come later, and often the only up-to-date guide is
+someone showing it on video.
+
+The idea behind prentice: instead of watching a tutorial and copying it click
+by click, give the recording to prentice and get a skill Claude Code can carry
+out for you. The recording can be of you doing the task once, or eventually a
+tutorial video you already have.
+
+**Where it stands:** your own recordings work today and are measured (see
+[First live test](#first-live-test)), because prentice logs every click and
+keystroke while it records. A tutorial video has no such log, so prentice
+would have to infer each action from the picture. That path exists but isn't
+measured yet, and it's weaker in a second way: a command typed during your own
+recording is rebuilt from the logged keystrokes, but from a video alone it
+could only come from the model reading the screen, which can misread it. So
+prentice flags every script of that kind for review: in a skill made from a
+tutorial, nothing runs before a human has read it.
+
+## In 30 seconds
+
+1. **Record.** You start and stop it yourself. It saves the screen plus every
+   click and keystroke, and for each click, which button or field was hit.
+2. **Split into steps,** using those logged clicks and keys: exact, no
+   guessing from video.
+3. **Describe each step** with a vision model that runs locally on the Mac:
+   no API key, nothing leaves the machine.
+4. **Clean up:** merge duplicates and flag steps the model wasn't sure about.
+5. **Write the skill.** A step becomes a script only when there is an exact
+   command or address: best, a command typed into Terminal and run with Enter,
+   rebuilt from the logged keystrokes; otherwise one the model read off the
+   screen, which is then always flagged for review. Everything else becomes an
+   instruction for Claude Code to carry out in the app. It never turns a
+   description into a guessed command.
+
+```mermaid
+flowchart LR
+    A["Recording<br/>screen + every click and key<br/>+ the element clicked"] --> B["Steps<br/>split by the logged<br/>clicks and keys"]
+    B --> C["Descriptions<br/>local vision model"]
+    C --> D["Clean-up<br/>merge duplicates,<br/>flag unsure steps"]
+    D --> E["SKILL.md<br/>scripts where the recording<br/>proves the command,<br/>app instructions otherwise"]
+```
+
+For example, from the live terminal task the event log held these keys
+(Enter shown as ⏎; the local path is shortened here):
+
+```text
+cd ~/code/prentice⏎   ls⏎   git log --oneline -3⏎
+```
+
+and prentice wrote them, character for character, into one script, so the
+`cd` carries over to the next commands:
+
+```sh
+cd ~/code/prentice
+ls
+git log --oneline -3
+```
+
+The vision model's own reading of that screen had dropped a character from
+the path; the script comes from the keystrokes, not from the model.
+
+**Does it work?** Partly, and it's measured: in a first live test it found
+10 of the 11 real steps, and the terminal task's script ran on replay. But
+about two in three of its steps are still noise, so it's a research prototype,
+not a tool to trust yet. Details below.
+
+**Example output:** [the skill prentice wrote for a three-command terminal
+task](docs/example/terminal-git/).
+
+macOS only. The full design and its trade-offs are in
+[`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Status
 
@@ -298,7 +380,10 @@ evidence. Turning `"the YouTube homepage"` into `open https://youtube.com`
 would produce a command that looks exactly as confident as a real one and
 runs without ever showing a human what it guessed. A wrong scripted action
 is strictly worse than an honest UI-replay step, so the rule refuses to
-guess. Everything else becomes a UI-replay action carrying the semantic
+guess. And because these values are still the model's reading of the screen,
+which can be wrong, every such script is flagged `needs-review`, whatever
+Stage 4 said; only a command rebuilt from the event log (next paragraph) runs
+unflagged. Everything else becomes a UI-replay action carrying the semantic
 target description as the primary handle, the accessibility identifier when
 one was captured, and raw coordinates only as an explicitly-labelled
 last-resort hint — never as the primary target, per

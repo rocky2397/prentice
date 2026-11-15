@@ -196,3 +196,30 @@ def test_ground_step_preserves_traceability_and_source():
     assert grounded.source == "mixed"
     assert grounded.source_step_ids == ["s-0000", "s-0001"]
     assert grounded.variable_parameters == ["filename"]
+
+
+# --- scripts from the model's reading of the screen are always reviewed ---
+
+
+def test_script_from_model_parameters_is_flagged_for_review():
+    grounded = ground_step(_refined(parameters={"command": "ls"}))
+    assert grounded.grounding == "script"
+    assert grounded.needs_review is True
+    assert "not from logged keystrokes" in (grounded.review_reason or "")
+
+
+def test_url_script_from_model_parameters_is_flagged_for_review():
+    grounded = ground_step(_refined(action_type="navigate", parameters={"url": "example.com"}))
+    assert grounded.script == "open https://example.com"
+    assert grounded.needs_review is True
+
+
+def test_screen_read_script_keeps_an_existing_review_reason():
+    step = _refined(parameters={"command": "ls"}, needs_review=True, review_reason="model unsure")
+    assert ground_step(step).review_reason == "model unsure"
+
+
+def test_ui_replay_step_is_not_flagged_by_the_screen_read_rule():
+    grounded = ground_step(_refined(target_description="the Save button"))
+    assert grounded.grounding == "ui_replay"
+    assert grounded.needs_review is False
