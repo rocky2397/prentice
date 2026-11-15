@@ -43,6 +43,10 @@ class InterpretRunMeta(BaseModel):
     context_window: int
     max_tokens: int
     temperature: float
+    keyframe_max_width: int | None = None  # None: full screen resolution (runs before this field)
+    model_calls: int | None = None  # segments sent to the model
+    from_event_log: int | None = None  # window switches described from the event log alone
+    uninterpreted: int | None = None  # model answers that couldn't be used (fallback steps)
 
 
 InterpretRunMetaAdapter: TypeAdapter = TypeAdapter(InterpretRunMeta)

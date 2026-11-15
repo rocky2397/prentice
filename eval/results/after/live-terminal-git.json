@@ -1,0 +1,55 @@
+{
+  "session": "20261115T171841Z-1dc15c0f",
+  "task": "terminal-git",
+  "answer_key_status": "scripted",
+  "required_steps": 3,
+  "required_found": 2,
+  "optional_found": 0,
+  "predicted_steps": 6,
+  "predicted_paired": 2,
+  "recall": 0.6666666666666666,
+  "precision": 0.3333333333333333,
+  "action_type_right": 2,
+  "values_expected": 3,
+  "values_captured": 2,
+  "rows": [
+    {
+      "key_id": 1,
+      "what": "cd into the prentice folder",
+      "optional": false,
+      "partner": "refined-0002",
+      "type_ok": true,
+      "value_expected": true,
+      "value_captured": true
+    },
+    {
+      "key_id": 2,
+      "what": "List the folder with ls",
+      "optional": false,
+      "partner": "refined-0004",
+      "type_ok": true,
+      "value_expected": true,
+      "value_captured": true
+    },
+    {
+      "key_id": 3,
+      "what": "Show the last three commits",
+      "optional": false,
+      "partner": null,
+      "type_ok": null,
+      "value_expected": true,
+      "value_captured": null
+    }
+  ],
+  "grounding": {
+    "session_id": "20261115T171841Z-1dc15c0f",
+    "skill_name": "terminal-prentice-workflow",
+    "input_step_count": 6,
+    "output_step_count": 3,
+    "scripted_step_count": 1,
+    "ui_replay_step_count": 2,
+    "ax_grounded_step_count": 0,
+    "needs_review_count": 3,
+    "unrefined_passthrough_count": 3
+  }
+}

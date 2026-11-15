@@ -6,6 +6,15 @@ harder-to-deadlock implementation — an acceptable tradeoff for Stage 1
 given how infrequently window focus changes relative to click/key events.
 Known limitation: two switches faster than ``poll_interval`` apart may
 coalesce into one logged event.
+
+The app comes from the on-screen window list (front to back, always
+current): the owner of the frontmost normal window. The title comes from the
+accessibility API's focused window. ``NSWorkspace.frontmostApplication``
+looked simpler, but in a command-line process without a running AppKit event
+loop it is never refreshed: every switch was logged as the terminal the
+recorder ran in, even when the title said "… - Google Chrome". The AX focused
+application can't stand in for it either: it fails outright in some contexts
+(kAXErrorCannotComplete), and then the app would be lost.
 """
 
 from __future__ import annotations
@@ -14,7 +23,7 @@ import threading
 from collections.abc import Callable
 from typing import Any
 
-from AppKit import NSWorkspace
+from AppKit import NSRunningApplication
 
 from .accessibility import _copy_attr, _get_attr
 
@@ -31,19 +40,46 @@ except ImportError:
     _AX_AVAILABLE = False
 
 
-def _focused_window_title() -> str | None:
-    """The focused window's title, via the same best-effort AX accessors
-    accessibility.py uses for the under-cursor element lookup."""
+def _app_for_pid(pid: int) -> tuple[str | None, str | None]:
+    app = NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
+    if app is None:
+        return None, None
+    return app.localizedName(), app.bundleIdentifier()
+
+
+def _front_window() -> dict | None:
+    """The frontmost normal (layer 0) on-screen window, as the window server lists it."""
+    from Quartz import (
+        CGWindowListCopyWindowInfo,
+        kCGNullWindowID,
+        kCGWindowListExcludeDesktopElements,
+        kCGWindowListOptionOnScreenOnly,
+    )
+
+    windows = CGWindowListCopyWindowInfo(
+        kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID
+    )
+    return next((w for w in windows or [] if w.get("kCGWindowLayer") == 0), None)
+
+
+def _ax_focused_title() -> str | None:
     if not _AX_AVAILABLE:
         return None
-    system_wide = AXUIElementCreateSystemWide()
-    app = _copy_attr(system_wide, kAXFocusedApplicationAttribute)
+    app = _copy_attr(AXUIElementCreateSystemWide(), kAXFocusedApplicationAttribute)
     if app is None:
         return None
     window = _copy_attr(app, kAXFocusedWindowAttribute)
-    if window is None:
-        return None
-    return _get_attr(window, kAXTitleAttribute)
+    return _get_attr(window, kAXTitleAttribute) if window is not None else None
+
+
+def focused_app_and_title() -> tuple[str | None, str | None, str | None]:
+    """(app name, bundle id, window title) of the window in front."""
+    front = _front_window()
+    if front is None:
+        return None, None, _ax_focused_title()
+    name, bundle = _app_for_pid(int(front["kCGWindowOwnerPID"]))
+    title = _ax_focused_title() or front.get("kCGWindowName") or None
+    return name or front.get("kCGWindowOwnerName"), bundle, title
 
 
 class WindowTracker:
@@ -57,11 +93,7 @@ class WindowTracker:
         self._last: tuple[str | None, str | None, str | None] | None = None
 
     def _poll_once(self) -> None:
-        workspace = NSWorkspace.sharedWorkspace()
-        app_info = workspace.frontmostApplication()
-        app_name = app_info.localizedName() if app_info else None
-        bundle_id = app_info.bundleIdentifier() if app_info else None
-        window_title = _focused_window_title()
+        app_name, bundle_id, window_title = focused_app_and_title()
         current = (app_name, bundle_id, window_title)
         if current != self._last:
             self._last = current

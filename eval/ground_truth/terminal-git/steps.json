@@ -1,0 +1,11 @@
+{
+  "task": "terminal-git",
+  "status": "draft",
+  "verified_against": null,
+  "note": "Drafted from task.md before recording. A human sets status to \"verified\" (and verified_against to the session id) after watching the recording and correcting these steps to what actually happened.",
+  "steps": [
+    {"id": 1, "what": "cd into the prentice folder", "action_types": ["run_command", "type"], "keywords": ["cd", "prentice"], "expect_param": "cd"},
+    {"id": 2, "what": "List the folder with ls", "action_types": ["run_command", "type"], "keywords": ["ls", "list"], "expect_param": "ls"},
+    {"id": 3, "what": "Show the last three commits", "action_types": ["run_command", "type"], "keywords": ["git log", "commit"], "expect_param": "git log"}
+  ]
+}

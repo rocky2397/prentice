@@ -1,0 +1,12 @@
+{
+  "task": "browser-wikipedia",
+  "status": "draft",
+  "verified_against": null,
+  "note": "Drafted from task.md before recording. A human sets status to \"verified\" (and verified_against to the session id) after watching the recording and correcting these steps to what actually happened.",
+  "steps": [
+    {"id": 1, "what": "Go to wikipedia.org", "action_types": ["navigate", "type"], "keywords": ["wikipedia"], "expect_param": "wikipedia.org"},
+    {"id": 2, "what": "Search for \"Large language model\"", "action_types": ["type", "click"], "keywords": ["search", "large language model"], "expect_param": "large language model"},
+    {"id": 3, "what": "Open the \"Large language model\" article from the results", "action_types": ["click", "navigate"], "keywords": ["large language model", "result", "article"], "optional": true},
+    {"id": 4, "what": "Bring the \"History\" section into view", "action_types": ["scroll", "click"], "keywords": ["history", "scroll"]}
+  ]
+}

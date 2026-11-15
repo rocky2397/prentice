@@ -41,7 +41,10 @@ def test_frontmatter_has_the_three_required_keys():
 
 def test_frontmatter_escapes_single_quotes():
     doc = render_skill_md(
-        [_step()], skill_name="demo", description="Opens the user's 'Documents' folder.", session_id="s"
+        [_step()],
+        skill_name="demo",
+        description="Opens the user's 'Documents' folder.",
+        session_id="s",
     )
     assert "description: 'Opens the user''s ''Documents'' folder.'" in doc
 
@@ -67,7 +70,9 @@ def test_ui_replay_step_renders_its_semantic_target():
 
 
 def test_ax_identifier_is_rendered_when_present():
-    doc = _render([_step(ui_target=UITarget(description="Save", ax_role="AXButton", ax_title="Save"))])
+    doc = _render(
+        [_step(ui_target=UITarget(description="Save", ax_role="AXButton", ax_title="Save"))]
+    )
     assert "**Accessibility identifier:**" in doc
     assert "role=" in doc
 
@@ -166,3 +171,42 @@ def test_render_script_is_a_safe_standalone_shell_script():
     assert "set -eu" in script
     assert "open -a Terminal.app" in script
     assert "refined-0000" in script  # traceability back to the Stage 3/4 step
+
+
+def test_long_review_reasons_are_cut_to_one_readable_line():
+    long = "the model was unsure because " + "this step looks like several others\n" * 40
+    doc = _render(
+        [_step(needs_review=True, confidence="unrefined_passthrough", review_reason=long)]
+    )
+    line = next(ln for ln in doc.splitlines() if ln.startswith("- **Review reason:**"))
+    assert len(line) < 300
+    assert line.endswith("(full text in refined_steps.jsonl)")
+    assert "\n" not in line
+
+
+def test_short_review_reasons_are_unchanged():
+    doc = _render([_step(needs_review=True, confidence="model_flagged", review_reason="unsure")])
+    assert "- **Review reason:** unsure" in doc
+
+
+def test_a_quoted_copy_of_the_model_output_is_dropped():
+    reason = 'chunk failed to parse: model did not return valid JSON: \'[{"intent": "x"}]\''
+    doc = _render(
+        [_step(needs_review=True, confidence="unrefined_passthrough", review_reason=reason)]
+    )
+    assert "- **Review reason:** chunk failed to parse: model did not return valid JSON\n" in doc
+
+
+def test_every_line_of_a_multi_line_script_is_indented():
+    doc = _render(
+        [
+            _step(
+                grounding="script",
+                action_type="run_command",
+                script="cd /x\nls",
+                script_path="s.sh",
+                ui_target=None,
+            )
+        ]
+    )
+    assert "  ```sh\n  cd /x\n  ls\n  ```" in doc
