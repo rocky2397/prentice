@@ -119,3 +119,11 @@ def test_cli_reports_and_writes_json(tmp_path, capsys):
     printed = capsys.readouterr().out
     assert "DRAFT" in printed and "2/3" in printed
     assert json.loads(out.read_text())["required_found"] == 2
+
+
+def test_longer_keywords_also_match_word_endings():
+    key = AnswerKeyStep(id=1, what="scroll", action_types=["scroll"], keywords=["scroll"])
+    assert can_pair(key, step("s", "scroll", "page", intent="The user scrolled down"))
+    assert not can_pair(
+        key, step("s", "scroll", "page", intent="the bankscroll")
+    )  # must start a word

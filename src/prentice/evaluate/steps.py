@@ -66,8 +66,14 @@ def load_answer_key(path: str | Path) -> AnswerKey:
 
 
 def _word(term: str) -> re.Pattern[str]:
-    """Whole-word, case-insensitive: "ls" must not match "tools"."""
-    return re.compile(r"(?<![a-z0-9])" + re.escape(term.lower()) + r"(?![a-z0-9])")
+    """Case-insensitive match at the start of a word.
+
+    Short terms (up to 3 characters) must be the whole word, so "ls" doesn't
+    match "tools"; longer ones may carry an ending, so "scroll" also finds
+    "scrolled" and "scrolling".
+    """
+    end = r"(?![a-z0-9])" if len(term) <= 3 else ""
+    return re.compile(r"(?<![a-z0-9])" + re.escape(term.lower()) + end)
 
 
 def _step_text(step: RefinedStep) -> str:

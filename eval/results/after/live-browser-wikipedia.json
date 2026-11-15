@@ -1,0 +1,55 @@
+{
+  "session": "20261115T172602Z-9cc3e119",
+  "task": "browser-wikipedia",
+  "answer_key_status": "scripted",
+  "required_steps": 3,
+  "required_found": 3,
+  "optional_found": 0,
+  "predicted_steps": 8,
+  "predicted_paired": 3,
+  "recall": 1.0,
+  "precision": 0.375,
+  "action_type_right": 3,
+  "values_expected": 2,
+  "values_captured": 0,
+  "rows": [
+    {
+      "key_id": 1,
+      "what": "Go to en.wikipedia.org",
+      "optional": false,
+      "partner": "refined-0000",
+      "type_ok": true,
+      "value_expected": true,
+      "value_captured": false
+    },
+    {
+      "key_id": 2,
+      "what": "Search for \"Large language model\"",
+      "optional": false,
+      "partner": "refined-0001",
+      "type_ok": true,
+      "value_expected": true,
+      "value_captured": false
+    },
+    {
+      "key_id": 3,
+      "what": "Scroll down the article",
+      "optional": false,
+      "partner": "refined-0007",
+      "type_ok": true,
+      "value_expected": false,
+      "value_captured": null
+    }
+  ],
+  "grounding": {
+    "session_id": "20261115T172602Z-9cc3e119",
+    "skill_name": "switched-terminal-workflow",
+    "input_step_count": 8,
+    "output_step_count": 8,
+    "scripted_step_count": 5,
+    "ui_replay_step_count": 3,
+    "ax_grounded_step_count": 1,
+    "needs_review_count": 6,
+    "unrefined_passthrough_count": 4
+  }
+}

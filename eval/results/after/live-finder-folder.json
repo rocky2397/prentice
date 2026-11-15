@@ -1,0 +1,73 @@
+{
+  "session": "20261115T172630Z-072bdb59",
+  "task": "finder-folder",
+  "answer_key_status": "scripted",
+  "required_steps": 5,
+  "required_found": 4,
+  "optional_found": 0,
+  "predicted_steps": 19,
+  "predicted_paired": 4,
+  "recall": 0.8,
+  "precision": 0.21052631578947367,
+  "action_type_right": 2,
+  "values_expected": 2,
+  "values_captured": 0,
+  "rows": [
+    {
+      "key_id": 1,
+      "what": "Create a new folder",
+      "optional": false,
+      "partner": "refined-0010",
+      "type_ok": true,
+      "value_expected": false,
+      "value_captured": null
+    },
+    {
+      "key_id": 2,
+      "what": "Name the folder prentice-test",
+      "optional": false,
+      "partner": "refined-0011",
+      "type_ok": false,
+      "value_expected": true,
+      "value_captured": false
+    },
+    {
+      "key_id": 3,
+      "what": "Drag prentice-dummy.txt into prentice-test",
+      "optional": false,
+      "partner": "refined-0012",
+      "type_ok": false,
+      "value_expected": false,
+      "value_captured": null
+    },
+    {
+      "key_id": 4,
+      "what": "Open prentice-test",
+      "optional": false,
+      "partner": "refined-0017",
+      "type_ok": true,
+      "value_expected": false,
+      "value_captured": null
+    },
+    {
+      "key_id": 5,
+      "what": "Rename the file to prentice-renamed.txt",
+      "optional": false,
+      "partner": null,
+      "type_ok": null,
+      "value_expected": true,
+      "value_captured": null
+    }
+  ],
+  "grounding": {
+    "session_id": "20261115T172630Z-072bdb59",
+    "skill_name": "google-chrome-workflow",
+    "input_step_count": 19,
+    "output_step_count": 19,
+    "scripted_step_count": 9,
+    "ui_replay_step_count": 10,
+    "ax_grounded_step_count": 4,
+    "needs_review_count": 14,
+    "unrefined_passthrough_count": 13
+  }
+}

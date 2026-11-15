@@ -22,8 +22,16 @@ class SegmentKeyframes:
     after_path: Path
 
 
+def fit_width(image, max_width: int | None):
+    """Scale an image down to max_width (keeping its aspect ratio); never up."""
+    if not max_width or image.width <= max_width:
+        return image
+    height = round(image.height * max_width / image.width)
+    return image.resize((max_width, height))
+
+
 def extract_keyframes(
-    video_path: Path, segments: list[Segment], output_dir: Path
+    video_path: Path, segments: list[Segment], output_dir: Path, max_width: int | None = None
 ) -> dict[str, SegmentKeyframes]:
     wanted_indices = {s.frame_start for s in segments} | {s.frame_end for s in segments}
     frames = extract_frames_at(video_path, wanted_indices)
@@ -40,7 +48,9 @@ def extract_keyframes(
         segment_dir.mkdir(parents=True, exist_ok=True)
         before_path = segment_dir / "before.jpg"
         after_path = segment_dir / "after.jpg"
-        frames[segment.frame_start].save(before_path)
-        frames[segment.frame_end].save(after_path)
-        keyframes[segment.segment_id] = SegmentKeyframes(before_path=before_path, after_path=after_path)
+        fit_width(frames[segment.frame_start], max_width).save(before_path)
+        fit_width(frames[segment.frame_end], max_width).save(after_path)
+        keyframes[segment.segment_id] = SegmentKeyframes(
+            before_path=before_path, after_path=after_path
+        )
     return keyframes

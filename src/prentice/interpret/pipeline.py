@@ -15,7 +15,7 @@ from ..capture.schema import load_manifest
 from ..segment.schema import load_segments
 from .keyframes import extract_keyframes
 from .schema import InterpretRunMeta, Step
-from .vlm import InterpretParams, interpret_segment
+from .vlm import InterpretParams, fallback_step, interpret_segment, window_switch_step
 
 
 def progress_line(done: int, total: int, durations: list[float]) -> str:
@@ -41,19 +41,38 @@ def interpret_session(session_dir: Path, params: InterpretParams | None = None) 
     segments = load_segments(str(session_dir / "segments.jsonl"))
 
     video_path = session_dir / manifest.video_path
-    keyframes = extract_keyframes(video_path, segments, session_dir / "keyframes")
+    keyframes = extract_keyframes(
+        video_path, segments, session_dir / "keyframes", max_width=params.keyframe_max_width
+    )
 
     steps: list[Step] = []
     durations: list[float] = []
+    model_calls = from_event_log = uninterpreted = 0
     for i, segment in enumerate(segments):
         started = time.monotonic()
-        step = interpret_segment(
-            segment,
-            keyframes[segment.segment_id],
-            prior_steps=steps,
-            step_id=f"{manifest.session_id}-{i:04d}",
-            params=params,
-        )
+        step_id = f"{manifest.session_id}-{i:04d}"
+        step = window_switch_step(segment, step_id)
+        if step is not None:
+            from_event_log += 1
+        else:
+            model_calls += 1
+            try:
+                step = interpret_segment(
+                    segment,
+                    keyframes[segment.segment_id],
+                    prior_steps=steps,
+                    step_id=step_id,
+                    params=params,
+                )
+            except ValueError as exc:
+                # One unusable answer must not lose every segment done so far.
+                uninterpreted += 1
+                reason = str(exc).split(":")[0]
+                print(
+                    f"[prentice] interpret: segment {segment.segment_id}: {reason}; kept as a fallback step",
+                    flush=True,
+                )
+                step = fallback_step(segment, step_id, reason)
         steps.append(step)
         durations.append(time.monotonic() - started)
         # flush: the line must show up live even when output goes to a pipe or file
@@ -70,6 +89,10 @@ def interpret_session(session_dir: Path, params: InterpretParams | None = None) 
         context_window=params.context_window,
         max_tokens=params.max_tokens,
         temperature=params.temperature,
+        keyframe_max_width=params.keyframe_max_width,
+        model_calls=model_calls,
+        from_event_log=from_event_log,
+        uninterpreted=uninterpreted,
     )
     (session_dir / "interpret_meta.json").write_text(meta.model_dump_json(indent=2))
 

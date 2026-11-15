@@ -29,6 +29,11 @@ DEFAULT_MODEL_NAME = "mlx-community/Qwen3-VL-30B-A3B-Instruct-3bit"
 DEFAULT_CONTEXT_WINDOW = 5
 DEFAULT_MAX_TOKENS = 512
 DEFAULT_TEMPERATURE = 0.0
+# Screenshots are scaled down to this width before the model sees them. Full
+# Retina frames (3456 px) turn into thousands of image tokens per screenshot
+# and dominated the run time (about 50 s per segment); on a live capture the
+# event log carries the exact clicks and keys, so fine print matters less.
+DEFAULT_KEYFRAME_MAX_WIDTH = 1280
 
 
 @dataclass(frozen=True)
@@ -37,6 +42,7 @@ class InterpretParams:
     context_window: int = DEFAULT_CONTEXT_WINDOW
     max_tokens: int = DEFAULT_MAX_TOKENS
     temperature: float = DEFAULT_TEMPERATURE
+    keyframe_max_width: int = DEFAULT_KEYFRAME_MAX_WIDTH
 
 
 def _build_prompt(segment: Segment, prior_steps: list[Step]) -> str:
@@ -76,7 +82,9 @@ def _parse_step_response(text: str, segment: Segment, step_id: str) -> Step:
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"model did not return valid JSON for segment {segment.segment_id}: {text!r}") from exc
+        raise ValueError(
+            f"model did not return valid JSON for segment {segment.segment_id}: {text!r}"
+        ) from exc
 
     if data.get("action_type") not in VALID_ACTION_TYPES:
         raise ValueError(
@@ -97,6 +105,68 @@ def _parse_step_response(text: str, segment: Segment, step_id: str) -> Step:
         intent=data.get("intent", ""),
         action_type=data["action_type"],
         target_description=data.get("target_description", ""),
+        parameters=parameters,
+    )
+
+
+_HINT_TO_ACTION = {
+    "click": "click",
+    "type": "type",
+    "drag": "drag",
+    "scroll": "scroll",
+    "window_switch": "navigate",
+    "scene_change": "click",
+}
+
+
+def fallback_step(segment: Segment, step_id: str, reason: str) -> Step:
+    """A step for a segment whose model answer couldn't be used.
+
+    One bad answer (e.g. a stray quote in the JSON) used to stop the whole run
+    and lose every segment already done. The step keeps what the event log
+    knows (the kind of action) and says plainly that it wasn't interpreted, so
+    Stage 4 and a reviewer can see it.
+    """
+    return Step(
+        step_id=step_id,
+        segment_id=segment.segment_id,
+        source=segment.source,
+        intent=f"Could not interpret this step ({reason}); the event log shows a {segment.action_hint}.",
+        action_type=_HINT_TO_ACTION.get(segment.action_hint, "click"),
+        target_description="",
+        parameters={},
+    )
+
+
+def window_switch_step(segment: Segment, step_id: str) -> Step | None:
+    """Describe a pure window switch from the event log, without the model.
+
+    A window switch says exactly which app and window took focus, so a model
+    call (two screenshots, about a minute each before the scaling) adds
+    nothing. Returns None when the segment isn't a single logged switch.
+    """
+    from ..capture.schema import WindowSwitchEvent
+
+    switches = [e for e in segment.events if isinstance(e, WindowSwitchEvent)]
+    if (
+        segment.action_hint != "window_switch"
+        or not switches
+        or len(switches) != len(segment.events)
+    ):
+        return None
+    last = switches[-1]
+    app = last.app_name or last.bundle_id or "another app"
+    title = f' ("{last.window_title}")' if last.window_title else ""
+    parameters = {"application": last.app_name} if last.app_name else {}
+    if last.window_title:
+        parameters["window_title"] = last.window_title
+    return Step(
+        step_id=step_id,
+        segment_id=segment.segment_id,
+        source=segment.source,
+        intent=f"Switched to {app}{title}.",
+        action_type="navigate",
+        target_description=f"the {app} window{title}",
         parameters=parameters,
     )
 
