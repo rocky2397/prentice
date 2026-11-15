@@ -64,8 +64,8 @@
     "skill_name": "google-chrome-workflow",
     "input_step_count": 19,
     "output_step_count": 19,
-    "scripted_step_count": 9,
-    "ui_replay_step_count": 10,
+    "scripted_step_count": 0,
+    "ui_replay_step_count": 19,
     "ax_grounded_step_count": 4,
     "needs_review_count": 14,
     "unrefined_passthrough_count": 13

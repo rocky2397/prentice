@@ -46,8 +46,8 @@
     "skill_name": "terminal-prentice-workflow",
     "input_step_count": 6,
     "output_step_count": 3,
-    "scripted_step_count": 3,
-    "ui_replay_step_count": 0,
+    "scripted_step_count": 1,
+    "ui_replay_step_count": 2,
     "ax_grounded_step_count": 0,
     "needs_review_count": 3,
     "unrefined_passthrough_count": 3

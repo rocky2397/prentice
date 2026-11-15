@@ -151,3 +151,25 @@ def test_focus_changes_after_the_last_command_stay_separate():
 def test_a_single_command_is_left_as_it_is():
     steps = [g("a", "ls")]
     assert group_terminal_commands(steps, [CMD("ls")]) == steps
+
+
+# ---- window switches are context, never scripts
+
+
+def test_a_step_that_is_only_a_window_switch_is_not_scripted():
+    segs = {
+        "s1": segment(
+            "s1", [WindowSwitchEvent(t_ms=1500, app_name="Finder", bundle_id="com.apple.finder")]
+        )
+    }
+    step = refined("s1", action="navigate", application="Finder")  # would be `open -a Finder`
+    evidence = evidence_for(step, segs, FINDER)
+    assert evidence.focus_only and not evidence.terminal_focus_only
+    grounded = ground_step(step, evidence)
+    assert grounded.grounding == "ui_replay"
+    assert grounded.script is None
+
+
+def test_an_app_value_on_a_real_action_still_scripts():
+    step = refined("s1", action="navigate", application="Finder")
+    assert ground_step(step, evidence_for(step, {}, FINDER)).script == "open -a Finder"

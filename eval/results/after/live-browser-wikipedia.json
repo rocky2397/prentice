@@ -43,11 +43,11 @@
   ],
   "grounding": {
     "session_id": "20261115T172602Z-9cc3e119",
-    "skill_name": "switched-terminal-workflow",
+    "skill_name": "wikipedia-google-workflow",
     "input_step_count": 8,
     "output_step_count": 8,
-    "scripted_step_count": 5,
-    "ui_replay_step_count": 3,
+    "scripted_step_count": 1,
+    "ui_replay_step_count": 7,
     "ax_grounded_step_count": 1,
     "needs_review_count": 6,
     "unrefined_passthrough_count": 4

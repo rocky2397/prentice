@@ -148,6 +148,11 @@ def ground_step(
     if evidence.terminal_command:
         script = evidence.terminal_command
         action_type = "run_command"
+    elif evidence.focus_only:
+        # Nothing but a window taking focus: context for the next step, not an
+        # action of its own. Its app name used to become `open -a <app>`,
+        # filling skills with scripts that only bring windows forward.
+        script = None
     else:
         script = derive_script(step)
 

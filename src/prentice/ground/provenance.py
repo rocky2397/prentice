@@ -50,6 +50,7 @@ class StepEvidence:
     y: float | None = None
     terminal_command: str | None = None  # exact typed command(s), one per line
     terminal_focus_only: bool = False  # nothing but window switches within a terminal app
+    focus_only: bool = False  # nothing but window switches (any app): context, not an action
 
 
 EMPTY_EVIDENCE = StepEvidence()
@@ -169,9 +170,8 @@ def evidence_for(
     )
     command = _terminal_command(segments, window_switches or [])
     events = [e for s in segments for e in s.events]
-    focus_only = bool(events) and all(
-        isinstance(e, WindowSwitchEvent) and e.bundle_id in TERMINAL_BUNDLES for e in events
-    )
+    focus_only = bool(events) and all(isinstance(e, WindowSwitchEvent) for e in events)
+    terminal_focus_only = focus_only and all(e.bundle_id in TERMINAL_BUNDLES for e in events)
     click_events = [
         event
         for segment in segments
@@ -180,7 +180,11 @@ def evidence_for(
     ]
     if not click_events:
         if command or focus_only:
-            return StepEvidence(terminal_command=command, terminal_focus_only=focus_only)
+            return StepEvidence(
+                terminal_command=command,
+                terminal_focus_only=terminal_focus_only,
+                focus_only=focus_only,
+            )
         return EMPTY_EVIDENCE
 
     with_ax = next((e for e in click_events if e.ax_element is not None), None)
@@ -194,5 +198,6 @@ def evidence_for(
         x=chosen.x,
         y=chosen.y,
         terminal_command=command,
-        terminal_focus_only=focus_only,
+        terminal_focus_only=terminal_focus_only,
+        focus_only=focus_only,
     )
