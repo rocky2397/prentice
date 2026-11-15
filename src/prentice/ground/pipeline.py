@@ -26,6 +26,7 @@ from .skill_md import (
     render_skill_md,
     script_filename,
 )
+from .terminal_session import group_terminal_commands
 
 
 def _default_description(steps: list[GroundedStep], skill_name: str) -> str:
@@ -46,14 +47,13 @@ def ground_session(
     segments_by_step_id = load_segments_by_step_id(session_dir)
     window_switches = load_window_switches(session_dir)
 
+    evidence = [evidence_for(step, segments_by_step_id, window_switches) for step in refined_steps]
     grounded: list[GroundedStep] = [
-        ground_step(
-            step,
-            evidence_for(step, segments_by_step_id, window_switches),
-            step_id=f"grounded-{i:04d}",
-        )
-        for i, step in enumerate(refined_steps)
+        ground_step(step, ev, step_id=f"grounded-{i:04d}")
+        for i, (step, ev) in enumerate(zip(refined_steps, evidence, strict=True))
     ]
+    # Consecutive terminal commands must run in one shell (see terminal_session.py).
+    grounded = group_terminal_commands(grounded, evidence)
 
     # Script paths are assigned here rather than in grounding.py so the
     # decision logic stays a pure function of a step, with no filesystem
@@ -72,8 +72,12 @@ def ground_session(
     resolved_description = description or _default_description(grounded, resolved_name)
 
     scripted = [s for s in grounded if s.grounding == "script"]
+    scripts_dir = skill_dir / SCRIPTS_DIR_NAME
+    # Scripts from an earlier run of this stage would sit next to the new ones
+    # and be mistaken for part of the skill.
+    for old in scripts_dir.glob("step-*.sh") if scripts_dir.is_dir() else []:
+        old.unlink()
     if scripted:
-        scripts_dir = skill_dir / SCRIPTS_DIR_NAME
         scripts_dir.mkdir(parents=True, exist_ok=True)
         for step in scripted:
             assert step.script_path is not None  # set immediately above

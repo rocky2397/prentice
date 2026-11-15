@@ -43,13 +43,13 @@
   ],
   "grounding": {
     "session_id": "20261115T171841Z-1dc15c0f",
-    "skill_name": "terminal-command-workflow",
+    "skill_name": "terminal-showing-workflow",
     "input_step_count": 6,
-    "output_step_count": 6,
-    "scripted_step_count": 3,
-    "ui_replay_step_count": 3,
+    "output_step_count": 3,
+    "scripted_step_count": 1,
+    "ui_replay_step_count": 2,
     "ax_grounded_step_count": 0,
-    "needs_review_count": 6,
-    "unrefined_passthrough_count": 6
+    "needs_review_count": 3,
+    "unrefined_passthrough_count": 3
   }
 }

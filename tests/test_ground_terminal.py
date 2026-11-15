@@ -2,7 +2,9 @@
 
 from prentice.capture.schema import KeyEvent, MouseClickEvent, WindowSwitchEvent
 from prentice.ground.grounding import ground_step
-from prentice.ground.provenance import evidence_for, typed_commands
+from prentice.ground.provenance import StepEvidence, evidence_for, typed_commands
+from prentice.ground.schema import GroundedStep, UITarget
+from prentice.ground.terminal_session import group_terminal_commands
 from prentice.refine.schema import RefinedStep
 from prentice.segment.schema import Segment
 
@@ -97,3 +99,55 @@ def test_without_evidence_nothing_changes():
     grounded = ground_step(step, evidence_for(step, {}, TERMINAL))
     assert grounded.grounding == "ui_replay"
     assert grounded.action_type == "type"
+
+
+# ---- grouping consecutive commands into one script (terminal_session.py)
+
+
+def CMD(command):
+    return StepEvidence(terminal_command=command)
+
+
+FOCUS = StepEvidence(terminal_focus_only=True)
+OTHER = StepEvidence()
+
+
+def g(sid, script=None):
+    common = {
+        "step_id": sid,
+        "source_step_ids": [sid],
+        "source": "event_log",
+        "intent": f"step {sid}",
+        "confidence": "ok",
+    }
+    if script:
+        return GroundedStep(**common, action_type="run_command", grounding="script", script=script)
+    return GroundedStep(
+        **common, action_type="navigate", grounding="ui_replay", ui_target=UITarget(description="x")
+    )
+
+
+def test_commands_with_terminal_focus_changes_between_become_one_script():
+    steps = [g("a", "cd /x"), g("b"), g("c", "ls"), g("d", "git log")]
+    out = group_terminal_commands(steps, [CMD("cd /x"), FOCUS, CMD("ls"), CMD("git log")])
+    assert len(out) == 1
+    assert out[0].script == "cd /x\nls\ngit log"
+    assert out[0].source_step_ids == ["a", "b", "c", "d"]
+    assert out[0].intent == "Run in one terminal session: `cd /x`; `ls`; `git log`"
+
+
+def test_anything_else_ends_the_session():
+    steps = [g("a", "cd /x"), g("b"), g("c", "ls")]
+    out = group_terminal_commands(steps, [CMD("cd /x"), OTHER, CMD("ls")])
+    assert [s.step_id for s in out] == ["a", "b", "c"]
+
+
+def test_focus_changes_after_the_last_command_stay_separate():
+    steps = [g("f"), g("a", "cd /x"), g("c", "ls"), g("b")]
+    out = group_terminal_commands(steps, [FOCUS, CMD("cd /x"), CMD("ls"), FOCUS])
+    assert [s.source_step_ids for s in out] == [["f"], ["a", "c"], ["b"]]
+
+
+def test_a_single_command_is_left_as_it_is():
+    steps = [g("a", "ls")]
+    assert group_terminal_commands(steps, [CMD("ls")]) == steps

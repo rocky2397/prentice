@@ -307,7 +307,11 @@ uncertain (Tab completion, arrow keys, shortcuts, a click or window switch in
 between, a line without Enter) leaves the step as UI replay. On the first live
 recording (`eval/tasks/terminal-git`) this turned 0 of 3 commands into 3 of 3
 scripts, with the exact text; the model's own transcription had dropped the
-leading `/` of a path.
+leading `/` of a path. Consecutive commands like these are then merged into
+one script, because each script runs in its own shell and a `cd` must carry
+over to the commands after it (`ground/terminal_session.py`). The merged
+script from that recording ran successfully: the first generated script to
+be replayed.
 
 The accessibility identifier and coordinates don't exist on `Step`, so they
 can't be read straight out of `refined_steps.jsonl`. They're recovered by
