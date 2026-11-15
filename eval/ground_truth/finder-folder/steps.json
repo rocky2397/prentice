@@ -1,0 +1,13 @@
+{
+  "task": "finder-folder",
+  "status": "draft",
+  "verified_against": null,
+  "note": "Drafted from task.md before recording. A human sets status to \"verified\" (and verified_against to the session id) after watching the recording and correcting these steps to what actually happened.",
+  "steps": [
+    {"id": 1, "what": "Create a new folder on the Desktop", "action_types": ["click", "type"], "keywords": ["new folder"]},
+    {"id": 2, "what": "Name the folder prentice-test", "action_types": ["type"], "keywords": ["prentice-test", "name"], "expect_param": "prentice-test"},
+    {"id": 3, "what": "Drag prentice-dummy.txt into prentice-test", "action_types": ["drag"], "keywords": ["prentice-dummy", "drag", "move"]},
+    {"id": 4, "what": "Open prentice-test", "action_types": ["click"], "keywords": ["prentice-test", "open"], "optional": true},
+    {"id": 5, "what": "Rename the file to prentice-renamed.txt", "action_types": ["type", "click"], "keywords": ["rename", "prentice-renamed"], "expect_param": "prentice-renamed"}
+  ]
+}

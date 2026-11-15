@@ -29,6 +29,7 @@ prentice-segment = "prentice.segment.pipeline:main"
 prentice-interpret = "prentice.interpret.pipeline:main"
 prentice-refine = "prentice.refine.pipeline:main"
 prentice-ground = "prentice.ground.pipeline:main"
+prentice-score = "prentice.evaluate.steps:main"
 
 [build-system]
 requires = ["hatchling"]

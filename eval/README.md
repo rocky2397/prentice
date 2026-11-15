@@ -95,6 +95,14 @@ measurement pieces §3 of `ARCHITECTURE.md` calls for — a step-extraction
 precision/recall scorer and an end-to-end replay harness — do not exist yet
 in any form, so `results/` is still empty.
 
+**In progress (live-test prep):** three tasks are defined in `tasks/`
+(terminal, browser, Finder), each with a draft answer key in
+`ground_truth/<task>/steps.json` (marked `"draft"` until checked against a
+recording), and a step scorer exists: `prentice-score <session>
+<answer key>` (`src/prentice/evaluate/steps.py`). How to record the live
+sessions: [`RECORDING.md`](RECORDING.md). The replay harness (point 3 below)
+is still to do.
+
 **What unblocking this actually takes**, since "hand-label the recordings"
 is only half of it:
 
