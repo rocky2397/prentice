@@ -33,7 +33,9 @@ uv run prentice-scripted-run             # about 3 minutes; press Esc to abort
 ```
 
 Don't touch the mouse or keyboard while it runs. Close or hide private
-windows first: the whole screen is recorded. The Finder task works only in
+windows first: the whole screen is recorded. The browser task opens a Chrome
+guest window, so no history, bookmarks or extensions appear in the recording,
+and closes it again afterwards; Safari has no guest mode. The Finder task works only in
 `~/prentice-sandbox`, which the script creates and removes again. A single
 task: `--task terminal-git` (or `browser-wikipedia`, `finder-folder`); Safari
 instead of Chrome: `--browser Safari`.
