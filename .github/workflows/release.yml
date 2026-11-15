@@ -1,0 +1,51 @@
+# Publish a GitHub Release when a version tag is pushed, e.g.:
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# The tag must match the version in pyproject.toml. The release carries the
+# built wheel and source archive; nothing is uploaded anywhere else (no PyPI),
+# and only the repository's own GITHUB_TOKEN is used.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: brew install ffmpeg
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Tag must match the package version
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME doesn't match pyproject.toml version $version"
+            exit 1
+          fi
+
+      - name: Test before releasing
+        run: |
+          uv sync --locked --extra dev
+          uv run ruff check .
+          uv run pytest -q
+
+      - name: Build wheel and source archive
+        run: uv build
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes

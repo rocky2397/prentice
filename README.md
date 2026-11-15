@@ -1,5 +1,7 @@
 # prentice
 
+[![CI](https://github.com/rocky2397/prentice/actions/workflows/ci.yml/badge.svg)](https://github.com/rocky2397/prentice/actions/workflows/ci.yml)
+
 Records a user's desktop workflow — screen video + OS-level input events,
 explicit start/stop — and converts it into a `SKILL.md` that Claude Code can
 use to replicate the task. Personal portfolio project; see
@@ -354,6 +356,12 @@ data — the lever it depends on is upstream parameter extraction, which is
 where the effort belongs next, not in loosening this rule.
 
 ## Development
+
+GitHub Actions runs lint and the test suite on macOS for every push to
+`main` and every pull request (`.github/workflows/ci.yml`, Python 3.12 and
+3.14). Pushing a version tag that matches `pyproject.toml` (e.g. `v0.2.0`)
+tests again, builds the wheel and source archive, and publishes them as a
+GitHub Release (`release.yml`). Locally:
 
 ```sh
 uv sync --extra dev

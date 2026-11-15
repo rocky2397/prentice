@@ -39,6 +39,25 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/prentice"]
 
+# The source archive lists what it may contain, so a local file (recordings,
+# the model cache, editor or agent state) can never end up in a release.
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/prentice",
+    "tests",
+    "scripts",
+    "eval/README.md",
+    "eval/RECORDING.md",
+    "eval/tasks",
+    "eval/ground_truth",
+    "eval/results",
+    "README.md",
+    "ARCHITECTURE.md",
+    "pyproject.toml",
+    "uv.lock",
+]
+exclude = ["**/._*", "**/__pycache__"]
+
 [tool.ruff]
 line-length = 100
 src = ["src", "tests", "scripts"]

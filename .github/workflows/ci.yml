@@ -1,0 +1,47 @@
+# Lint and test on every push to main and every pull request.
+#
+# macOS only: capture uses AppKit/Quartz/accessibility APIs and Stages 3-4 use
+# Apple's MLX, so there is nothing meaningful to run on Linux. The tests that
+# download model checkpoints stay opt-in (PRENTICE_TEST_CLIP / PRENTICE_TEST_VLM
+# unset here); the ffmpeg-backed video tests run because ffmpeg is installed.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (Python ${{ matrix.python }})
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: brew install ffmpeg
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies (from uv.lock)
+        run: uv sync --locked --extra dev --python ${{ matrix.python }}
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Test
+        run: uv run pytest -q
