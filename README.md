@@ -21,6 +21,33 @@ the recording proves exactly what to run.
    run with Enter). Everything else becomes an instruction for Claude Code to
    carry out in the app. It never turns a description into a guessed command.
 
+```mermaid
+flowchart LR
+    A["Recording<br/>screen + every click and key<br/>+ the element clicked"] --> B["Steps<br/>split by the logged<br/>clicks and keys"]
+    B --> C["Descriptions<br/>local vision model"]
+    C --> D["Clean-up<br/>merge duplicates,<br/>flag unsure steps"]
+    D --> E["SKILL.md<br/>scripts where the recording<br/>proves the command,<br/>app instructions otherwise"]
+```
+
+For example, from the live terminal task the event log held these keys
+(Enter shown as ⏎; the local path is shortened here):
+
+```text
+cd ~/code/prentice⏎   ls⏎   git log --oneline -3⏎
+```
+
+and prentice wrote them, character for character, into one script, so the
+`cd` carries over to the next commands:
+
+```sh
+cd ~/code/prentice
+ls
+git log --oneline -3
+```
+
+The vision model's own reading of that screen had dropped a character from
+the path; the script comes from the keystrokes, not from the model.
+
 **Does it work?** Partly, and it's measured: in a first live test it found
 10 of the 11 real steps, and the terminal task's script ran on replay. But
 about two in three of its steps are still noise, so it's a research prototype,
