@@ -228,6 +228,18 @@ def _reliability_summary(steps: list[GroundedStep]) -> str:
     return "\n".join(lines) + "\n"
 
 
+REASON_LIMIT = 200
+
+
+def short_reason(reason: str, limit: int = REASON_LIMIT) -> str:
+    """One readable line: older sessions stored a model's whole raw output here."""
+    # Drop a quoted copy of the model's output (": '[..." or ": '{..."), if any.
+    flat = re.split(r": ['\"][\[{]", " ".join(reason.split()), maxsplit=1)[0]
+    if len(flat) <= limit:
+        return flat
+    return flat[:limit].rstrip() + "… (full text in refined_steps.jsonl)"
+
+
 def _render_step(step: GroundedStep, number: int) -> str:
     badges = []
     if step.needs_review:
@@ -243,7 +255,7 @@ def _render_step(step: GroundedStep, number: int) -> str:
         lines.append(f"- **Replay by running:** `{SCRIPTS_DIR_NAME}/{step.script_path}`")
         lines.append("")
         lines.append("  ```sh")
-        lines.append(f"  {step.script}")
+        lines.extend(f"  {line}" for line in (step.script or "").splitlines())
         lines.append("  ```")
     else:
         target = step.ui_target
@@ -275,7 +287,7 @@ def _render_step(step: GroundedStep, number: int) -> str:
             f"- **Variable inputs:** {', '.join(f'`{v}`' for v in step.variable_parameters)}"
         )
     if step.needs_review and step.review_reason:
-        lines.append(f"- **Review reason:** {step.review_reason}")
+        lines.append(f"- **Review reason:** {short_reason(step.review_reason)}")
 
     lines.append(f"- **Traces to:** {', '.join(f'`{s}`' for s in step.source_step_ids)}")
     return "\n".join(lines) + "\n"

@@ -9,6 +9,7 @@ design (see refine/schema.py).
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from ..capture.schema import load_manifest
@@ -22,7 +23,17 @@ def refine_session(session_dir: Path, params: RefineParams | None = None) -> Pat
     manifest = load_manifest(str(session_dir / "session.json"))
     steps = load_steps(str(session_dir / "steps.jsonl"))
 
-    refined = refine_session_steps(steps, params=params)
+    failures: list[dict] = []
+    refined = refine_session_steps(steps, params=params, failures=failures)
+
+    # Full model output of chunks that failed to parse, for debugging; the
+    # steps themselves only carry a short reason.
+    failures_path = session_dir / "refine_failures.jsonl"
+    if failures:
+        with open(failures_path, "w", encoding="utf-8") as f:
+            f.writelines(json.dumps(failure) + "\n" for failure in failures)
+    elif failures_path.exists():
+        failures_path.unlink()
 
     refined_path = session_dir / "refined_steps.jsonl"
     with open(refined_path, "w", encoding="utf-8") as f:
@@ -41,7 +52,9 @@ def refine_session(session_dir: Path, params: RefineParams | None = None) -> Pat
     )
     (session_dir / "refine_meta.json").write_text(meta.model_dump_json(indent=2))
 
-    print(f"[prentice] wrote {len(refined)} refined steps (from {len(steps)} raw) to {refined_path}")
+    print(
+        f"[prentice] wrote {len(refined)} refined steps (from {len(steps)} raw) to {refined_path}"
+    )
     return refined_path
 
 

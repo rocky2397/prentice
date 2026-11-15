@@ -68,10 +68,30 @@ class RefineParams:
 
 
 _EXAMPLE_INPUT = [
-    {"step_id": "s-01", "action_type": "click", "target_description": "the Save button", "intent": "save the file"},
-    {"step_id": "s-02", "action_type": "click", "target_description": "the Save button", "intent": "save the file"},
-    {"step_id": "s-03", "action_type": "navigate", "target_description": "the file browser", "intent": "open the file browser"},
-    {"step_id": "s-04", "action_type": "click", "target_description": "the report.txt file", "intent": "open report.txt"},
+    {
+        "step_id": "s-01",
+        "action_type": "click",
+        "target_description": "the Save button",
+        "intent": "save the file",
+    },
+    {
+        "step_id": "s-02",
+        "action_type": "click",
+        "target_description": "the Save button",
+        "intent": "save the file",
+    },
+    {
+        "step_id": "s-03",
+        "action_type": "navigate",
+        "target_description": "the file browser",
+        "intent": "open the file browser",
+    },
+    {
+        "step_id": "s-04",
+        "action_type": "click",
+        "target_description": "the report.txt file",
+        "intent": "open report.txt",
+    },
 ]
 _EXAMPLE_OUTPUT = [
     {
@@ -124,7 +144,7 @@ def _build_refine_prompt(steps: list[Step]) -> str:
         "merged into one step — navigating to the file browser (s-03) and "
         "opening a specific file (s-04) stayed separate, even though they "
         "are part of the same broader task, because they are different "
-        "real actions. Also notice \"report.txt\" was marked as a variable "
+        'real actions. Also notice "report.txt" was marked as a variable '
         "parameter, since a different run of this workflow would likely "
         "open a different file.\n\n"
         f"Now refine this real step sequence, in order, as JSON:\n{steps_json}\n\n"
@@ -217,7 +237,9 @@ def _build_refined_step(
 
     variable_parameters = item.get("variable_parameters")
     variable_parameters = (
-        [v for v in variable_parameters if isinstance(v, str)] if isinstance(variable_parameters, list) else []
+        [v for v in variable_parameters if isinstance(v, str)]
+        if isinstance(variable_parameters, list)
+        else []
     )
 
     needs_review = bool(item.get("needs_review", False))
@@ -253,14 +275,31 @@ def _build_refined_step(
     )
 
 
+class RefineResponseError(ValueError):
+    """A chunk's response couldn't be used at all.
+
+    The message stays short, because it becomes every passed-through step's
+    review reason (and so a line in SKILL.md); the full model output is kept
+    in ``raw`` and written to ``refine_failures.jsonl`` for debugging.
+    """
+
+    def __init__(self, message: str, raw: str) -> None:
+        super().__init__(message)
+        self.raw = raw
+
+
 def _parse_refine_response(text: str, input_steps: list[Step]) -> list[RefinedStep]:
     text = strip_code_fence(text)
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"model did not return valid JSON: {text!r}") from exc
+        raise RefineResponseError(
+            f"model did not return valid JSON ({exc.msg} at character {exc.pos})", text
+        ) from exc
     if not isinstance(data, list):
-        raise TypeError(f"model did not return a JSON array: {text!r}")
+        raise RefineResponseError(
+            f"model did not return a JSON array (got {type(data).__name__})", text
+        )
 
     input_by_id = {s.step_id: s for s in input_steps}
     index_by_id = {s.step_id: i for i, s in enumerate(input_steps)}
@@ -270,7 +309,9 @@ def _parse_refine_response(text: str, input_steps: list[Step]) -> list[RefinedSt
         try:
             if not isinstance(item, dict):
                 raise TypeError(f"array element is not an object: {item!r}")
-            refined.append(_build_refined_step(item, input_by_id, claimed, step_id=f"refined-{i:04d}"))
+            refined.append(
+                _build_refined_step(item, input_by_id, claimed, step_id=f"refined-{i:04d}")
+            )
         except (ValueError, TypeError, KeyError) as exc:
             # one malformed element must not lose every other step in the
             # batch — same lesson as the Stage 3 parameters-type crash
@@ -285,7 +326,8 @@ def _parse_refine_response(text: str, input_steps: list[Step]) -> list[RefinedSt
             continue
         refined.append(
             _passthrough_step(
-                step, "model did not include this step in its refine response — passed through unrefined"
+                step,
+                "model did not include this step in its refine response — passed through unrefined",
             )
         )
 
@@ -294,7 +336,12 @@ def _parse_refine_response(text: str, input_steps: list[Step]) -> list[RefinedSt
 
 
 def _refine_chunk(
-    chunk: list[Step], model: Any, processor: Any, config: Any, params: RefineParams
+    chunk: list[Step],
+    model: Any,
+    processor: Any,
+    config: Any,
+    params: RefineParams,
+    failures: list[dict] | None = None,
 ) -> list[RefinedStep]:
     prompt = _build_refine_prompt(chunk)
     formatted_prompt = apply_chat_template(processor, config, prompt, num_images=0)
@@ -316,11 +363,23 @@ def _refine_chunk(
         # garbled JSON partway through). Same no-silent-loss rule applies at
         # the chunk level as at the individual-step level: pass every step
         # in this chunk through unrefined rather than losing it.
-        print(f"[prentice] refine: chunk failed to parse ({exc}) — passing its {len(chunk)} steps through unrefined")
+        print(
+            f"[prentice] refine: chunk failed to parse ({exc}) — passing its {len(chunk)} steps through unrefined"
+        )
+        if failures is not None:
+            failures.append(
+                {
+                    "step_ids": [s.step_id for s in chunk],
+                    "error": str(exc),
+                    "raw_response": getattr(exc, "raw", result.text),
+                }
+            )
         return [_passthrough_step(s, f"chunk failed to parse: {exc}") for s in chunk]
 
 
-def refine_session_steps(steps: list[Step], params: RefineParams | None = None) -> list[RefinedStep]:
+def refine_session_steps(
+    steps: list[Step], params: RefineParams | None = None, failures: list[dict] | None = None
+) -> list[RefinedStep]:
     """Refines in bounded chunks rather than the whole session at once —
     see module docstring: real testing found long single-shot generations
     degrade into malformed JSON, garbled text, or repetition loops."""
@@ -333,7 +392,7 @@ def refine_session_steps(steps: list[Step], params: RefineParams | None = None) 
     all_refined: list[RefinedStep] = []
     for chunk_start in range(0, len(steps), params.chunk_size):
         chunk = steps[chunk_start : chunk_start + params.chunk_size]
-        all_refined.extend(_refine_chunk(chunk, model, processor, config, params))
+        all_refined.extend(_refine_chunk(chunk, model, processor, config, params, failures))
 
     # Chunks are processed and appended in chronological order already, and
     # each chunk's own results are internally ordered — just needs a single

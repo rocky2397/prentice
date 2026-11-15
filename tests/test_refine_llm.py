@@ -12,10 +12,17 @@ import os
 import pytest
 
 from prentice.interpret.schema import Step
-from prentice.refine.llm import _build_refine_prompt, _build_refined_step, _parse_refine_response
+from prentice.refine.llm import (
+    RefineResponseError,
+    _build_refine_prompt,
+    _build_refined_step,
+    _parse_refine_response,
+)
 
 
-def _step(step_id: str, source: str = "inferred", action_type: str = "click", intent: str = "x") -> Step:
+def _step(
+    step_id: str, source: str = "inferred", action_type: str = "click", intent: str = "x"
+) -> Step:
     return Step(
         step_id=step_id,
         segment_id=step_id,
@@ -34,7 +41,10 @@ def test_build_refine_prompt_includes_all_step_ids():
 
 
 def test_build_refined_step_resolves_source_from_inputs():
-    input_by_id = {"s-0000": _step("s-0000", source="event_log"), "s-0001": _step("s-0001", source="event_log")}
+    input_by_id = {
+        "s-0000": _step("s-0000", source="event_log"),
+        "s-0001": _step("s-0001", source="event_log"),
+    }
     item = {
         "source_step_ids": ["s-0000", "s-0001"],
         "action_type": "click",
@@ -47,7 +57,10 @@ def test_build_refined_step_resolves_source_from_inputs():
 
 
 def test_build_refined_step_mixed_source():
-    input_by_id = {"s-0000": _step("s-0000", source="event_log"), "s-0001": _step("s-0001", source="inferred")}
+    input_by_id = {
+        "s-0000": _step("s-0000", source="event_log"),
+        "s-0001": _step("s-0001", source="inferred"),
+    }
     item = {
         "source_step_ids": ["s-0000", "s-0001"],
         "action_type": "click",
@@ -72,14 +85,24 @@ def test_build_refined_step_drops_unknown_step_ids_but_keeps_valid_ones():
 
 def test_build_refined_step_all_unknown_step_ids_raises():
     input_by_id = {"s-0000": _step("s-0000")}
-    item = {"source_step_ids": ["s-9999"], "action_type": "click", "intent": "x", "target_description": "y"}
+    item = {
+        "source_step_ids": ["s-9999"],
+        "action_type": "click",
+        "intent": "x",
+        "target_description": "y",
+    }
     with pytest.raises(ValueError, match="match no unclaimed input step"):
         _build_refined_step(item, input_by_id, set(), "refined-0000")
 
 
 def test_build_refined_step_unrecognized_action_type_raises():
     input_by_id = {"s-0000": _step("s-0000")}
-    item = {"source_step_ids": ["s-0000"], "action_type": "teleport", "intent": "x", "target_description": "y"}
+    item = {
+        "source_step_ids": ["s-0000"],
+        "action_type": "teleport",
+        "intent": "x",
+        "target_description": "y",
+    }
     with pytest.raises(ValueError, match="unrecognized action_type"):
         _build_refined_step(item, input_by_id, set(), "refined-0000")
 
@@ -195,7 +218,7 @@ def test_parse_refine_response_invalid_json_raises():
 
 
 def test_parse_refine_response_non_array_raises():
-    with pytest.raises(TypeError, match="did not return a JSON array"):
+    with pytest.raises(RefineResponseError, match="did not return a JSON array"):
         _parse_refine_response('{"not": "an array"}', [_step("s-0000")])
 
 
@@ -218,3 +241,12 @@ def test_refine_session_steps_real_inference():
     assert all_absorbed <= {"s-0000", "s-0001", "s-0002"}
     for r in refined:
         assert r.action_type in {"click", "type", "scroll", "drag", "navigate", "run_command"}
+
+
+def test_unparseable_response_gives_a_short_reason_and_keeps_the_raw_text():
+    raw = '[{"source_step_ids": ["s-0"], "intent": "x", "target description: "broken' + "x" * 5000
+    with pytest.raises(RefineResponseError) as info:
+        _parse_refine_response(raw, [])
+    assert "valid JSON" in str(info.value)
+    assert len(str(info.value)) < 120  # becomes every passed-through step's review reason
+    assert info.value.raw == raw
