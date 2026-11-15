@@ -250,3 +250,91 @@ def test_unparseable_response_gives_a_short_reason_and_keeps_the_raw_text():
     assert "valid JSON" in str(info.value)
     assert len(str(info.value)) < 120  # becomes every passed-through step's review reason
     assert info.value.raw == raw
+
+
+# ---- robustness: split on failure, field-name variants
+
+import json as _json
+
+from prentice.refine.llm import _normalize_keys, _refine_chunk
+
+
+def _answer(chunk):
+    """A valid refine answer that keeps every step as it is."""
+    return _json.dumps(
+        [
+            {
+                "source_step_ids": [s.step_id],
+                "intent": s.intent,
+                "action_type": s.action_type,
+                "target_description": s.target_description,
+                "parameters": {},
+                "variable_parameters": [],
+                "needs_review": False,
+                "review_reason": None,
+            }
+            for s in chunk
+        ]
+    )
+
+
+def test_a_broken_chunk_is_retried_in_halves():
+    steps = [_step(f"s-{i}") for i in range(4)]
+    calls = []
+
+    def generate_text(chunk, *args):
+        calls.append(len(chunk))
+        return "[{broken" if len(chunk) == 4 else _answer(chunk)
+
+    failures = []
+    refined = _refine_chunk(steps, None, None, None, None, failures, generate_text)
+    assert calls == [4, 2, 2]
+    assert [r.source_step_ids for r in refined] == [["s-0"], ["s-1"], ["s-2"], ["s-3"]]
+    assert not any(r.needs_review for r in refined)
+    assert len(failures) == 1 and failures[0]["step_ids"] == ["s-0", "s-1", "s-2", "s-3"]
+
+
+def test_only_the_step_that_never_parses_is_passed_through():
+    steps = [_step(f"s-{i}") for i in range(2)]
+
+    def generate_text(chunk, *args):
+        return "[{broken" if any(s.step_id == "s-1" for s in chunk) else _answer(chunk)
+
+    refined = _refine_chunk(steps, None, None, None, None, [], generate_text)
+    assert [r.needs_review for r in refined] == [False, True]
+    assert "chunk failed to parse" in refined[1].review_reason
+
+
+def test_field_name_variants_are_normalised():
+    item = {
+        "source step ids": ["s-0"],
+        "actionType": "click",
+        "target description": "a button",
+        "params": {"x": 1},
+        "varParams": ["x"],
+        "needsReview": True,
+        "revReason": "unsure",
+    }
+    assert _normalize_keys(item) == {
+        "source_step_ids": ["s-0"],
+        "action_type": "click",
+        "target_description": "a button",
+        "parameters": {"x": 1},
+        "variable_parameters": ["x"],
+        "needs_review": True,
+        "review_reason": "unsure",
+    }
+
+
+def test_the_requested_name_wins_over_a_variant():
+    assert _normalize_keys({"params": {"a": 1}, "parameters": {"b": 2}}) == {"parameters": {"b": 2}}
+    assert _normalize_keys({"parameters": {"b": 2}, "params": {"a": 1}}) == {"parameters": {"b": 2}}
+
+
+def test_a_response_with_variants_now_refines_instead_of_passing_through():
+    text = _json.dumps(
+        [{"source step ids": ["s-0"], "intent": "x", "actionType": "click", "params": {"k": "v"}}]
+    )
+    refined = _parse_refine_response(text, [_step("s-0")])
+    assert refined[0].parameters == {"k": "v"}
+    assert not refined[0].needs_review

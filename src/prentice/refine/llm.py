@@ -20,6 +20,7 @@ refine quality demands it, not the starting default.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -275,6 +276,32 @@ def _build_refined_step(
     )
 
 
+# Field names the model was seen to use instead of the requested ones.
+_KEY_ALIASES = {
+    "params": "parameters",
+    "var_params": "variable_parameters",
+    "variable_params": "variable_parameters",
+    "rev_reason": "review_reason",
+}
+
+
+def _normalize_keys(item: dict[str, Any]) -> dict[str, Any]:
+    """Map variants like "needsReview", "target description", "params" to the asked-for names.
+
+    Real responses mixed camelCase, spaces and abbreviations within one array,
+    which made otherwise good steps fail validation and pass through
+    unrefined. A requested name already present always wins.
+    """
+    out: dict[str, Any] = {}
+    for key, value in item.items():
+        snake = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", str(key)).lower()
+        snake = re.sub(r"[\s\-]+", "_", snake.strip())
+        canonical = _KEY_ALIASES.get(snake, snake)
+        if canonical not in out or key == canonical:
+            out[canonical] = value
+    return out
+
+
 class RefineResponseError(ValueError):
     """A chunk's response couldn't be used at all.
 
@@ -301,6 +328,7 @@ def _parse_refine_response(text: str, input_steps: list[Step]) -> list[RefinedSt
             f"model did not return a JSON array (got {type(data).__name__})", text
         )
 
+    data = [_normalize_keys(item) if isinstance(item, dict) else item for item in data]
     input_by_id = {s.step_id: s for s in input_steps}
     index_by_id = {s.step_id: i for i, s in enumerate(input_steps)}
     claimed: set[str] = set()
@@ -335,14 +363,9 @@ def _parse_refine_response(text: str, input_steps: list[Step]) -> list[RefinedSt
     return refined
 
 
-def _refine_chunk(
-    chunk: list[Step],
-    model: Any,
-    processor: Any,
-    config: Any,
-    params: RefineParams,
-    failures: list[dict] | None = None,
-) -> list[RefinedStep]:
+def _generate_refine(
+    chunk: list[Step], model: Any, processor: Any, config: Any, params: RefineParams
+) -> str:
     prompt = _build_refine_prompt(chunk)
     formatted_prompt = apply_chat_template(processor, config, prompt, num_images=0)
     result = generate(
@@ -356,25 +379,55 @@ def _refine_chunk(
         repetition_context_size=params.repetition_context_size,
         verbose=False,
     )
+    return result.text
+
+
+def _refine_chunk(
+    chunk: list[Step],
+    model: Any,
+    processor: Any,
+    config: Any,
+    params: RefineParams,
+    failures: list[dict] | None = None,
+    generate_text: Any = None,
+) -> list[RefinedStep]:
+    """Refine one chunk; on an unusable answer, retry each half.
+
+    A whole chunk used to be passed through unrefined when its answer didn't
+    parse (two of three live recordings lost every step that way). Long
+    answers break more often, so the halves usually parse; at worst only a
+    single step is passed through. Merging can't cross a split, which is the
+    price of keeping the rest refined.
+    """
+    generate_text = generate_text or _generate_refine
+    text = generate_text(chunk, model, processor, config, params)
     try:
-        return _parse_refine_response(result.text, chunk)
+        return _parse_refine_response(text, chunk)
     except (ValueError, TypeError) as exc:
-        # A whole chunk's response can still fail to parse outright (e.g.
-        # garbled JSON partway through). Same no-silent-loss rule applies at
-        # the chunk level as at the individual-step level: pass every step
-        # in this chunk through unrefined rather than losing it.
-        print(
-            f"[prentice] refine: chunk failed to parse ({exc}) — passing its {len(chunk)} steps through unrefined"
-        )
         if failures is not None:
             failures.append(
                 {
                     "step_ids": [s.step_id for s in chunk],
                     "error": str(exc),
-                    "raw_response": getattr(exc, "raw", result.text),
+                    "raw_response": getattr(exc, "raw", text),
                 }
             )
-        return [_passthrough_step(s, f"chunk failed to parse: {exc}") for s in chunk]
+        if len(chunk) > 1:
+            middle = len(chunk) // 2
+            print(
+                f"[prentice] refine: a chunk of {len(chunk)} steps failed to parse ({exc}) — retrying each half"
+            )
+            return _refine_chunk(
+                chunk[:middle], model, processor, config, params, failures, generate_text
+            ) + _refine_chunk(
+                chunk[middle:], model, processor, config, params, failures, generate_text
+            )
+        # A single step that still doesn't parse: same no-silent-loss rule as
+        # everywhere else — pass it through unrefined rather than losing it.
+        print(
+            f"[prentice] refine: step {chunk[0].step_id} failed to parse ({exc}) — passing it through unrefined"
+        )
+        return [_passthrough_step(chunk[0], f"chunk failed to parse: {exc}")]
 
 
 def refine_session_steps(
