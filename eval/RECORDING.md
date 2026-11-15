@@ -20,6 +20,29 @@ cd path/to/prentice
 uv run python scripts/check_permissions.py
 ```
 
+## The easy way: let the computer do the tasks
+
+After the permissions above, one command records all three tasks while the
+computer does them with synthetic mouse and keyboard input, and writes an
+exact answer key into each session folder (`answer_key.json`, status
+`"scripted"`), so nothing needs labelling:
+
+```sh
+uv run prentice-scripted-run --dry-run   # checks everything, touches nothing
+uv run prentice-scripted-run             # about 3 minutes; press Esc to abort
+```
+
+Don't touch the mouse or keyboard while it runs. Close or hide private
+windows first: the whole screen is recorded. The Finder task works only in
+`~/prentice-sandbox`, which the script creates and removes again. A single
+task: `--task terminal-git` (or `browser-wikipedia`, `finder-folder`); Safari
+instead of Chrome: `--browser Safari`.
+
+A script acts more cleanly than a person, so its numbers are optimistic; the
+manual recording below measures the human case.
+
+## The manual way
+
 ## 2. Before each recording
 
 - **Turn on Do Not Disturb**, so no notification ends up in the video.

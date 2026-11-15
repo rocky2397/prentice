@@ -185,7 +185,7 @@ def score(key: AnswerKey, steps: list[RefinedStep]) -> StepScore:
 
 def report(s: StepScore, ground_meta: dict | None) -> str:
     lines = [f"Task {s.task}"]
-    if s.answer_key_status != "verified":
+    if s.answer_key_status not in ("verified", "scripted"):
         lines.append(
             "  ! answer key is a DRAFT: verify it against the recording before trusting these numbers"
         )
